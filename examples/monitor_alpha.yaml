@@ -1,0 +1,49 @@
+name: "Monitor Salud Alpha"
+description: "Demo: HTTP + sys metrics + script enrichment"
+interval: 60s
+
+steps:
+  - id: health
+    type: http_get
+    source: "https://httpbin.org/get"
+    extract: response_time
+    timeout: 10s
+
+  - id: disk
+    type: sys_stat
+    source: "/"
+    extract: percentage_used
+
+  - id: mem
+    type: sys_stat
+    source: "memory"
+    extract: percent
+
+  - id: cpu
+    type: sys_stat
+    source: "cpu"
+    extract: percent
+
+  - id: enrich
+    type: script
+    runtime: python
+    file: ./scripts/enrich.py
+    timeout: 5s
+    input:
+      latency: ${steps.health.output.response_time}
+      disk: ${steps.disk.output.percentage_used}
+
+  - id: alert
+    type: conditional
+    when: "${steps.disk.output.percentage_used} > 80"
+
+output:
+  latency_ms: ${steps.health.output.response_time}
+  disk_pct: ${steps.disk.output.percentage_used}
+  mem_pct: ${steps.mem.output.percent}
+  cpu_pct: ${steps.cpu.output.percent}
+  score: ${steps.enrich.output.score}
+  note: ${steps.enrich.output.note}
+
+export:
+  local_port: 8080

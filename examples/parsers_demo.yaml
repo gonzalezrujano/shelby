@@ -1,0 +1,53 @@
+name: "Parsers Demo"
+description: "Shows all four shell parse engines: json, lines, regex, textfsm"
+interval: 60s
+
+steps:
+  # JSON parse: emit an array and pick records from it.
+  - id: fake_api
+    type: shell
+    command: |
+      printf '{"result":{"hosts":[
+        {"name":"a","ok":true,"latency_ms":12},
+        {"name":"b","ok":false,"latency_ms":240},
+        {"name":"c","ok":true,"latency_ms":34}
+      ]}}'
+    parse:
+      engine: json
+      path: result.hosts
+
+  # lines parse: raw log split per line, skip header.
+  - id: procs
+    type: shell
+    command: "ps -eo pid,comm | head -5"
+    parse:
+      engine: lines
+      skip: 1
+
+  # regex parse: named captures become record fields.
+  - id: access_log
+    type: shell
+    command: |
+      printf 'GET /api/users 200 12\nPOST /api/login 401 45\nGET /health 200 3\n'
+    parse:
+      engine: regex
+      pattern: '^(?P<method>\w+)\s+(?P<path>\S+)\s+(?P<code>\d+)\s+(?P<ms>\d+)$'
+
+  - id: slow_count
+    type: aggregator
+    op: count
+    over:
+      - ${steps.access_log.output.records}
+
+  - id: avg_latency
+    type: aggregator
+    op: avg
+    over:
+      - ${steps.fake_api.output.records}
+    field: latency_ms
+
+output:
+  hosts_count:     ${steps.fake_api.output.count}
+  procs:           ${steps.procs.output.records}
+  avg_latency_ms:  ${steps.avg_latency.output.value}
+  reqs_logged:     ${steps.slow_count.output.value}

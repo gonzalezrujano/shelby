@@ -1,63 +1,216 @@
-Tienes toda la razón, gracias por la precisión. He recalibrado el enfoque: **Shelby es un motor de observación y recolección de métricas**, no una herramienta de despliegue o escritura. Su propósito es extraer datos, procesarlos y enviarlos hacia un panel centralizado o una interfaz local.
+**Shelby = motor de observación y métricas**. Extrae datos, procesa, reporta. No despliega, no escribe externo.
 
-Aquí tienes el resumen y la estrategia de implementación en **Golang** corregidos bajo esta filosofía de "Solo Lectura/Métricas":
+### 🏗️ Shelby: Motor de Métricas AI-Driven
 
-### 🏗️ Proyecto Shelby: Motor de Métricas AI-Driven
+Agente ligero en **Go**. Lee fuentes (APIs, logs, sistema), consolida, reporta a UI local o cloud.
 
-**El Concepto:**
-Shelby es un agente ligero escrito en **Go** especializado en la **extracción y agregación de métricas**. Su trabajo es consultar diversas fuentes (APIs, logs, estados de sistema), consolidar esa información y reportarla a una interfaz local o un servicio de monitoreo en la nube.
-
-**El Factor IA (Pipelines en YAML):**
-La configuración se define mediante archivos **YAML** que describen el "plan de recolección". Al ser YAML, un LLM puede generar instantáneamente la lógica necesaria para monitorizar un servicio específico:
-* **Prompt del usuario:** *"Dame un pipeline de Shelby para medir el tiempo de respuesta de mi API y el uso de RAM local"*.
-* **Output de la IA:** Un YAML con los pasos de `fetch` y `parse` necesarios.
+**Factor IA (YAML):** pipelines describen plan de recolección. LLM genera YAML al vuelo desde prompt del usuario.
 
 ---
 
-### 🛠️ Implementación técnica con Golang
+### 🛠️ Arquitectura Go
 
-Para este enfoque de métricas, la arquitectura en Go se centraría en:
-
-1.  **Collectors (Módulos de Lectura):**
-    * Implementar interfaces `Collector` que solo tengan permiso de lectura.
-    * **Ejemplo:** Un colector de HTTP para "descargar" el estado de un servicio o un colector de sistema para medir CPU/Memoria.
-
-2.  **Pipeline de Transformación:**
-    * Una vez que Shelby descarga el dato (un JSON de una API, por ejemplo), usa el motor de Go para filtrar o calcular promedios antes de enviarlos.
-
-3.  **Exporters (Salida de Datos):**
-    * **Local:** Un servidor web embebido en Go (`net/http`) que expone una interfaz sencilla para ver las métricas en `localhost`.
-    * **Cloud:** Un cliente que envíe los resultados finales a un endpoint de métricas (tipo Prometheus o una API propia).
-
-4.  **Concurrencia Segura:**
-    * Usar **Goroutines** para que cada métrica se recolecte de forma independiente. Si una API externa tarda en responder, no bloquea la lectura de las métricas del sistema local.
+1. **Collectors (solo lectura):** HTTP, sys_stat, log_read, etc. Interfaz `Collector`.
+2. **Pipeline engine:** ejecuta `steps` en orden. Cada step produce `Output` tipado. Outputs guardados en contexto del pipeline, referenciables por siguientes steps vía `${steps.<id>.output.<campo>}`.
+3. **Step types:**
+   * `http_get`, `sys_stat`, `log_read` — collectors nativos Go.
+   * `script` — ejecuta Node/Python/Rust externo. Input por stdin JSON, output stdout JSON.
+   * `conditional` — branching según expresión sobre outputs previos.
+   * `aggregator` — reduce/map/merge sobre outputs previos.
+4. **Exporters:** servidor `net/http` local + cliente cloud opcional.
+5. **Concurrencia:** goroutines por step independiente. Step dependiente espera output upstream.
 
 ---
 
-### Ejemplo de flujo (YAML Amigable para IA):
+### Ejemplo YAML
 
 ```yaml
-pipeline: "Monitor de Salud Alpha"
+name: "Monitor Salud Alpha"
 interval: 60s
-metrics:
-  - name: "latencia_servicio"
-    type: "http_get"
+steps:
+  - id: health
+    type: http_get
     source: "https://api.ejemplo.com/health"
-    extract: "response_time"
-    
-  - name: "uso_disco"
-    type: "sys_stat"
+    extract: response_time
+
+  - id: disk
+    type: sys_stat
     source: "/dev/sda1"
-    extract: "percentage_used"
+    extract: percentage_used
+
+  - id: enrich
+    type: script
+    runtime: python
+    file: ./scripts/enrich.py
+    input:
+      latency: ${steps.health.output.response_time}
+      disk: ${steps.disk.output.percentage_used}
+
+  - id: alert
+    type: conditional
+    when: "${steps.enrich.output.score} > 80"
+    then:
+      - id: notify
+        type: script
+        runtime: node
+        file: ./scripts/notify.js
+
+output:
+  latency: ${steps.health.output.response_time}
+  disk: ${steps.disk.output.percentage_used}
+  score: ${steps.enrich.output.score}
 
 export:
   local_port: 8080
   cloud_endpoint: "https://cloud.shelby.io/ingest"
 ```
 
-**Resumiendo el alcance inicial:**
-* ✅ **SÍ:** Descargar datos de APIs, leer archivos de log locales, consultar métricas de sistema.
-* ✅ **SÍ:** Generar una interfaz local para visualizar esos datos.
-* ❌ **NO:** Subir archivos a S3, escribir en bases de datos externas o modificar configuraciones.
+---
 
-¿Te parece bien si el primer paso de la Alpha es crear el **"Collector" de sistema** para que Shelby pueda mostrar sus primeras métricas locales en una terminal o web simple?
+### 🖥️ CLI
+
+Binario `shelby`. Comandos:
+
+* `shelby list` — tabla pipelines registrados: nombre, intervalo, último run, status (ok/fail/running), próximo run.
+* `shelby show <name>` — detalle pipeline, steps, últimos outputs.
+* `shelby run <name>` — ejecuta ad-hoc, stream de logs por step.
+* `shelby logs <name>` — historial de runs.
+* `shelby add <file.yaml>` / `shelby rm <name>`.
+* `shelby serve` — demonio + UI web en `localhost:8080`.
+
+TUI con `bubbletea` o tabla simple `tablewriter`. Status con colores.
+
+---
+
+### Alcance Alpha
+* ✅ Collector sistema (CPU/RAM/disk).
+* ✅ Ejecutor pipeline con refs entre steps.
+* ✅ Runner script externo (Node/Python/Rust).
+* ✅ CLI `list` + `run` + `serve`.
+* ❌ Escritura externa, S3, DBs.
+
+---
+
+### 📦 Structs Go (spec)
+
+```go
+package shelby
+
+import "time"
+
+type Pipeline struct {
+    Name        string            `yaml:"name"`
+    Description string            `yaml:"description,omitempty"`
+    Interval    time.Duration     `yaml:"interval"`
+    Steps       []Step            `yaml:"steps"`
+    Output      map[string]string `yaml:"output,omitempty"` // key -> ref expr
+    Export      ExportConfig      `yaml:"export,omitempty"`
+}
+
+type Step struct {
+    ID      string                 `yaml:"id"`
+    Type    StepType               `yaml:"type"`
+    Source  string                 `yaml:"source,omitempty"`
+    Extract string                 `yaml:"extract,omitempty"`
+
+    // script
+    Runtime string                 `yaml:"runtime,omitempty"` // node|python|rust|bash
+    File    string                 `yaml:"file,omitempty"`
+    Input   map[string]any         `yaml:"input,omitempty"`   // may contain ${refs}
+
+    // conditional
+    When    string                 `yaml:"when,omitempty"`    // expr
+    Then    []Step                 `yaml:"then,omitempty"`
+    Else    []Step                 `yaml:"else,omitempty"`
+
+    // aggregator
+    Op      string                 `yaml:"op,omitempty"`      // sum|avg|merge|reduce
+    Over    []string               `yaml:"over,omitempty"`    // step ids
+
+    Timeout time.Duration          `yaml:"timeout,omitempty"`
+    Raw     map[string]any         `yaml:"-"`                 // passthrough
+}
+
+type StepType string
+
+const (
+    StepHTTPGet     StepType = "http_get"
+    StepSysStat     StepType = "sys_stat"
+    StepLogRead     StepType = "log_read"
+    StepScript      StepType = "script"
+    StepConditional StepType = "conditional"
+    StepAggregator  StepType = "aggregator"
+)
+
+type Output struct {
+    StepID   string         `json:"step_id"`
+    OK       bool           `json:"ok"`
+    Data     map[string]any `json:"data"`
+    Error    string         `json:"error,omitempty"`
+    Duration time.Duration  `json:"duration"`
+    StartedAt time.Time     `json:"started_at"`
+}
+
+type RunContext struct {
+    Pipeline *Pipeline
+    Steps    map[string]Output // id -> output
+    RunID    string
+}
+
+type Executor interface {
+    Execute(ctx context.Context, step Step, rc *RunContext) (Output, error)
+}
+
+type ExportConfig struct {
+    LocalPort     int    `yaml:"local_port,omitempty"`
+    CloudEndpoint string `yaml:"cloud_endpoint,omitempty"`
+}
+```
+
+---
+
+### 🔌 Contrato script externo (stdin/stdout JSON)
+
+Shelby lanza `<runtime> <file>` con stdin JSON, espera stdout JSON. stderr = logs.
+
+**Stdin (ShelbyRequest):**
+```json
+{
+  "step_id": "enrich",
+  "run_id": "r_01HXYZ...",
+  "pipeline": "Monitor Salud Alpha",
+  "input": {
+    "latency": 123,
+    "disk": 47.5
+  },
+  "context": {
+    "steps": {
+      "health": { "ok": true, "data": { "response_time": 123 } },
+      "disk":   { "ok": true, "data": { "percentage_used": 47.5 } }
+    }
+  },
+  "env": { "SHELBY_VERSION": "0.1.0" }
+}
+```
+
+**Stdout (ShelbyResponse):**
+```json
+{
+  "ok": true,
+  "data": { "score": 72.4, "note": "healthy" },
+  "error": null,
+  "metrics": { "custom_ms": 12 }
+}
+```
+
+Reglas:
+* Exit 0 + stdout JSON válido = éxito.
+* Exit != 0 o JSON inválido = fallo; stderr capturado en `Output.Error`.
+* Timeout por step (`step.timeout`, default 30s). Shelby mata proceso con SIGTERM → SIGKILL.
+* stdout debe ser **una sola línea JSON** (o bloque entre marcadores `<<<SHELBY_OUT` / `SHELBY_OUT>>>` si script loggea en stdout).
+* stdin cerrado antes de que proceso arranque su lógica.
+
+**SDKs sugeridos (thin):**
+* Python: `shelby.read()` → dict, `shelby.write(data)`.
+* Node: `shelby.read()` Promise, `shelby.write(data)`.
+* Rust: `shelby::read::<T>()`, `shelby::write(&v)`.

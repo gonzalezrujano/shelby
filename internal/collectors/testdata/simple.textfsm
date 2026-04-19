@@ -1,0 +1,6 @@
+Value NAME (\S+)
+Value COUNT (\d+)
+Value STATUS (\S+)
+
+Start
+  ^${NAME}\s+${COUNT}\s+${STATUS} -> Record

@@ -1,0 +1,10 @@
+Value FS (\S+)
+Value BLOCKS (\d+)
+Value USED (\d+)
+Value AVAIL (\d+)
+Value PCT (\d+)
+Value MOUNT (\S+)
+
+Start
+  ^Filesystem
+  ^${FS}\s+${BLOCKS}\s+${USED}\s+${AVAIL}\s+${PCT}%\s+${MOUNT} -> Record

@@ -1,0 +1,59 @@
+name: "Shell & TextFSM Demo"
+description: "Ejecuta comandos Bash y parsea su salida con TextFSM"
+interval: 30s
+
+steps:
+  - id: disk_df
+    type: shell
+    command: "df -Pk /"
+    parse:
+      engine: textfsm
+      template: ./templates/df.textfsm
+      types:
+        BLOCKS: int
+        USED:   int
+        AVAIL:  int
+        PCT:    int
+
+  - id: uptime_raw
+    type: shell
+    command: "uptime"
+
+  - id: report
+    type: script
+    runtime: python
+    file: ./scripts/enrich.py
+    timeout: 5s
+    input:
+      latency: 0
+      disk: ${steps.disk_df.output.records.0.PCT}
+
+  - id: disk_max_pct
+    type: aggregator
+    op: max
+    over:
+      - ${steps.disk_df.output.records}
+    field: PCT
+
+  - id: alert
+    type: conditional
+    when: "${steps.disk_max_pct.output.value} > 5"
+    then:
+      - id: notify
+        type: shell
+        command: "printf 'disk above 5%% threshold\n'"
+    else:
+      - id: noop
+        type: shell
+        command: "printf 'disk under threshold\n'"
+
+output:
+  disk_used_pct: ${steps.disk_df.output.records.0.PCT}
+  disk_mount:    ${steps.disk_df.output.records.0.MOUNT}
+  disk_rows:     ${steps.disk_df.output.count}
+  uptime:        ${steps.uptime_raw.output.stdout}
+  score:         ${steps.report.output.score}
+  note:          ${steps.report.output.note}
+  alert_branch:  ${steps.alert.output.branch}
+  alert_msg:     ${steps.notify.output.stdout}
+  disk_max_pct:  ${steps.disk_max_pct.output.value}
