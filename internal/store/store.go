@@ -279,6 +279,29 @@ func (s *Store) Run(slug, runID string) (*RunRecord, error) {
 	return nil, nil
 }
 
+// LookupPath resolves a dotted path (e.g. "http.p95_ms") against a JSON-ish
+// map. Returns the terminal value and true on hit. Non-map intermediates or
+// missing keys return (nil, false).
+func LookupPath(m map[string]any, path string) (any, bool) {
+	if m == nil || path == "" {
+		return nil, false
+	}
+	parts := strings.Split(path, ".")
+	var cur any = m
+	for _, p := range parts {
+		mm, ok := cur.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		v, ok := mm[p]
+		if !ok {
+			return nil, false
+		}
+		cur = v
+	}
+	return cur, true
+}
+
 // Slugify produces a filesystem-safe identifier: lowercase, alnum+dash only,
 // no leading/trailing dashes.
 func Slugify(name string) string {

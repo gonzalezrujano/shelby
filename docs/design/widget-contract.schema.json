@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shelby.dev/schemas/widget-contract.v0.json",
+  "title": "Shelby Widget Contract",
+  "description": "Payload every AI-generated widget receives. Source of truth for the contract shared between shelby (Go server) and shelby-viz (TS client). v0.",
+  "type": "object",
+  "required": ["kind", "points", "meta"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "description": "Shape of the payload. v0 ships timeseries; others reserved.",
+      "type": "string",
+      "enum": ["timeseries", "gauge", "scalar", "table", "categorical"]
+    },
+    "unit": {
+      "description": "Free-form unit hint for the renderer (ms, count, percent, bytes, ...).",
+      "type": "string"
+    },
+    "points": {
+      "description": "Time-ordered data points (oldest first).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["t", "v"],
+        "additionalProperties": false,
+        "properties": {
+          "t": {
+            "description": "RFC3339 timestamp.",
+            "type": "string",
+            "format": "date-time"
+          },
+          "v": {
+            "description": "Numeric value. Booleans coerced to 0/1 upstream.",
+            "type": "number"
+          },
+          "run_id": {
+            "description": "Originating run, for drill-down.",
+            "type": "string"
+          },
+          "labels": {
+            "description": "Optional categorical tags for grouped series.",
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    },
+    "meta": {
+      "description": "Provenance + query echo. Widgets display this; they do not parse structure from it.",
+      "type": "object",
+      "required": ["pipeline", "slug", "field", "generated_at"],
+      "properties": {
+        "pipeline": { "type": "string" },
+        "slug": { "type": "string" },
+        "field": {
+          "description": "Dotted path into RunRecord.Output used to build the series.",
+          "type": "string"
+        },
+        "limit": { "type": "integer", "minimum": 1 },
+        "range": {
+          "description": "Human-readable window used (reserved; v0 always omitted).",
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

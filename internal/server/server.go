@@ -29,8 +29,8 @@ func (s *Server) ListenAndServe(ctx context.Context) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/p/", s.handleDetail)
-	mux.HandleFunc("/api/pipelines", s.handleAPIList)
-	mux.HandleFunc("/api/pipelines/", s.handleAPIPipeline) // /api/pipelines/<slug>/run
+	mux.HandleFunc("/api/pipelines", withCORS(s.handleAPIList))
+	mux.HandleFunc("/api/pipelines/", s.handleAPIPipeline) // /api/pipelines/<slug>/{run|runs|runs/:id|series}
 
 	hs := &http.Server{Addr: s.Addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() {
@@ -213,8 +213,13 @@ func (s *Server) handleAPIList(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(s.collect())
 }
 
-// handleAPIPipeline routes /api/pipelines/<slug>/... — currently only .../run (POST).
+// handleAPIPipeline routes /api/pipelines/<slug>/...
+// Read endpoints (runs, runs/:id, series) live in api.go and go through
+// routeAPIPipeline. This handler only keeps the mutating /run (POST).
 func (s *Server) handleAPIPipeline(w http.ResponseWriter, r *http.Request) {
+	if s.routeAPIPipeline(w, r) {
+		return
+	}
 	rest := strings.TrimPrefix(r.URL.Path, "/api/pipelines/")
 	parts := strings.Split(rest, "/")
 	if len(parts) < 2 || parts[1] != "run" {
