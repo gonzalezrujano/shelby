@@ -29,22 +29,26 @@ type viewMode int
 
 const (
 	viewList viewMode = iota
-	viewDetail
+	viewRuns
+	viewRunDetail
 	viewRunning
 	viewRunResult
 )
 
 type model struct {
-	store   *store.Store
-	regs    []store.Registration
-	table   table.Model
-	mode    viewMode
-	status  string
-	err     error
-	last    *store.RunRecord // used in detail + run result
-	lastPip string           // pipeline name for result view
-	width   int
-	height  int
+	store     *store.Store
+	regs      []store.Registration
+	table     table.Model
+	mode      viewMode
+	status    string
+	err       error
+	runs      []store.RunRecord // populated in viewRuns
+	runsTable table.Model
+	detail    *store.RunRecord // active record for viewRunDetail / viewRunResult
+	selReg    *store.Registration
+	lastPip   string // pipeline name for result view banner
+	width     int
+	height    int
 }
 
 var (
@@ -99,11 +103,56 @@ func (m *model) reload() error {
 		table.WithFocused(true),
 		table.WithHeight(12),
 	)
+	t.SetStyles(tableStyles())
+	m.table = t
+	return nil
+}
+
+func tableStyles() table.Styles {
 	s := table.DefaultStyles()
 	s.Header = s.Header.BorderStyle(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240")).BorderBottom(true).Bold(true)
 	s.Selected = s.Selected.Foreground(lipgloss.Color("230")).Background(lipgloss.Color("63")).Bold(false)
-	t.SetStyles(s)
-	m.table = t
+	return s
+}
+
+// loadRuns fills runs/runsTable for the selected registration.
+func (m *model) loadRuns(reg store.Registration) error {
+	runs, err := m.store.Runs(reg.Slug, 50)
+	if err != nil {
+		return err
+	}
+	m.runs = runs
+	cols := []table.Column{
+		{Title: "WHEN", Width: 19},
+		{Title: "RUN ID", Width: 20},
+		{Title: "STATUS", Width: 8},
+		{Title: "DURATION", Width: 12},
+		{Title: "STEPS", Width: 8},
+	}
+	rows := make([]table.Row, 0, len(runs))
+	for _, r := range runs {
+		okCount := 0
+		for _, s := range r.Steps {
+			if s.OK {
+				okCount++
+			}
+		}
+		rows = append(rows, table.Row{
+			r.StartedAt.Local().Format("2006-01-02 15:04:05"),
+			r.RunID,
+			r.Status,
+			r.Duration.String(),
+			fmt.Sprintf("%d/%d", okCount, len(r.Steps)),
+		})
+	}
+	t := table.New(
+		table.WithColumns(cols),
+		table.WithRows(rows),
+		table.WithFocused(true),
+		table.WithHeight(14),
+	)
+	t.SetStyles(tableStyles())
+	m.runsTable = t
 	return nil
 }
 
@@ -150,7 +199,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.status = okStyle.Render(fmt.Sprintf("✓ %s ran ok", msg.name))
 		}
-		m.last = msg.rec
+		m.detail = msg.rec
 		m.lastPip = msg.name
 		m.mode = viewRunResult
 		_ = m.reload()
@@ -160,24 +209,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.mode {
 		case viewList:
 			return m.updateList(msg)
-		case viewDetail, viewRunResult:
+		case viewRuns:
+			return m.updateRuns(msg)
+		case viewRunDetail, viewRunResult:
 			switch msg.String() {
 			case "esc", "b", "backspace":
-				m.mode = viewList
+				if m.mode == viewRunDetail {
+					m.mode = viewRuns
+				} else {
+					m.mode = viewList
+				}
 				return m, nil
 			case "q", "ctrl+c":
 				return m, tea.Quit
 			}
 		case viewRunning:
-			// ignore most keys; allow Ctrl+C bail
 			if msg.String() == "ctrl+c" {
 				return m, tea.Quit
 			}
 		}
 	}
-	if m.mode == viewList {
+	switch m.mode {
+	case viewList:
 		var cmd tea.Cmd
 		m.table, cmd = m.table.Update(msg)
+		return m, cmd
+	case viewRuns:
+		var cmd tea.Cmd
+		m.runsTable, cmd = m.runsTable.Update(msg)
 		return m, cmd
 	}
 	return m, nil
@@ -200,10 +259,13 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		reg := m.regs[m.table.Cursor()]
-		last, _ := m.store.LastRun(reg.Slug)
-		m.last = last
+		m.selReg = &reg
 		m.lastPip = reg.Name
-		m.mode = viewDetail
+		if err := m.loadRuns(reg); err != nil {
+			m.status = failStyle.Render(fmt.Sprintf("load runs: %v", err))
+			return m, nil
+		}
+		m.mode = viewRuns
 		return m, nil
 	case "R":
 		_ = m.reload()
@@ -215,6 +277,37 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m model) updateRuns(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	case "esc", "b", "backspace":
+		m.mode = viewList
+		return m, nil
+	case "R":
+		if m.selReg != nil {
+			_ = m.loadRuns(*m.selReg)
+			m.status = dimStyle.Render("reloaded runs")
+		}
+		return m, nil
+	case "enter":
+		if len(m.runs) == 0 {
+			return m, nil
+		}
+		idx := m.runsTable.Cursor()
+		if idx < 0 || idx >= len(m.runs) {
+			return m, nil
+		}
+		rec := m.runs[idx]
+		m.detail = &rec
+		m.mode = viewRunDetail
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.runsTable, cmd = m.runsTable.Update(msg)
+	return m, cmd
+}
+
 func (m model) View() string {
 	header := titleStyle.Render(" SHELBY ") + "  " + dimStyle.Render(fmt.Sprintf("%d pipelines • %s", len(m.regs), m.store.Root))
 	switch m.mode {
@@ -223,20 +316,29 @@ func (m model) View() string {
 		if len(m.regs) == 0 {
 			body = dimStyle.Render("no pipelines registered.\nuse:  shelby add <file.yaml>")
 		}
-		help := helpStyle.Render("↑/↓ move • enter detail • r run • R reload • q quit")
+		help := helpStyle.Render("↑/↓ move • enter runs • r run • R reload • q quit")
 		return strings.Join([]string{header, "", body, "", m.status, help}, "\n")
+
+	case viewRuns:
+		title := headerStyle.Render("runs") + "  " + m.lastPip
+		body := m.runsTable.View()
+		if len(m.runs) == 0 {
+			body = dimStyle.Render("no runs yet for this pipeline.")
+		}
+		help := helpStyle.Render("↑/↓ move • enter detail • R reload • esc back • q quit")
+		return strings.Join([]string{header, "", title, "", body, "", m.status, help}, "\n")
 
 	case viewRunning:
 		return strings.Join([]string{header, "", m.status, "", helpStyle.Render("(ctrl+c to abort)")}, "\n")
 
 	case viewRunResult:
-		return renderRun(header, "run result", m.lastPip, m.last, m.status) + "\n" + helpStyle.Render("esc back • q quit")
+		return renderRun(header, "run result", m.lastPip, m.detail, m.status) + "\n" + helpStyle.Render("esc back • q quit")
 
-	case viewDetail:
-		if m.last == nil {
-			return strings.Join([]string{header, "", dimStyle.Render("no runs yet for this pipeline."), helpStyle.Render("esc back • q quit")}, "\n")
+	case viewRunDetail:
+		if m.detail == nil {
+			return strings.Join([]string{header, "", dimStyle.Render("no run selected."), helpStyle.Render("esc back • q quit")}, "\n")
 		}
-		return renderRun(header, "last run", m.lastPip, m.last, "") + "\n" + helpStyle.Render("esc back • q quit")
+		return renderRun(header, "run", m.lastPip, m.detail, "") + "\n" + helpStyle.Render("esc back • q quit")
 	}
 	return ""
 }

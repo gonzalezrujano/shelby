@@ -32,12 +32,16 @@ func Run(args []string) int {
 	switch cmd {
 	case "list":
 		return cmdList(rest)
+	case "ls":
+		return cmdList(rest)
 	case "show":
 		return cmdShow(rest)
 	case "run":
 		return cmdRun(rest)
 	case "logs":
 		return cmdLogs(rest)
+	case "log":
+		return cmdLog(rest)
 	case "add":
 		return cmdAdd(rest)
 	case "update":
@@ -71,7 +75,7 @@ commands:
   add <file.yaml>       register pipeline (stores abs path; edits live)
   update <name|slug> <file.yaml>
                         repoint registration at a new YAML (keeps run history)
-  list                  list registered pipelines with last-run status
+  list|ls               list registered pipelines with last-run status
   show <name|slug>      show pipeline YAML + last run summary
   rm <name|slug>        unregister pipeline (drops run history)
   run [-v|--debug] <name|file.yaml>
@@ -79,6 +83,8 @@ commands:
                         -v        print each step's status/duration/data as it runs
                         --debug   like -v plus resolved input and full data JSON
   logs <name|slug>      show recent run history
+  log <name|slug> [run-id]
+                        show full detail of a run (defaults to last run)
   validate <name|file>  check YAML for structural/semantic errors
   lint <name|file>      report style and best-practice warnings
   tui                   interactive dashboard
@@ -290,6 +296,74 @@ func cmdLogs(args []string) int {
 	}
 	tw.Flush()
 	return 0
+}
+
+func cmdLog(args []string) int {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "log: missing <name|slug> [run-id]")
+		return 1
+	}
+	st, err := openStore()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "store:", err)
+		return 1
+	}
+	reg, err := st.Get(args[0])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	var rec *store.RunRecord
+	if len(args) >= 2 {
+		rec, err = st.Run(reg.Slug, args[1])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "log:", err)
+			return 1
+		}
+		if rec == nil {
+			fmt.Fprintf(os.Stderr, "log: run %q not found for %s\n", args[1], reg.Slug)
+			return 1
+		}
+	} else {
+		rec, err = st.LastRun(reg.Slug)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "log:", err)
+			return 1
+		}
+		if rec == nil {
+			fmt.Println("no runs yet")
+			return 0
+		}
+	}
+	printRunDetail(reg, rec)
+	return 0
+}
+
+func printRunDetail(reg store.Registration, r *store.RunRecord) {
+	fmt.Printf("pipeline: %s  (slug: %s)\n", reg.Name, reg.Slug)
+	fmt.Printf("run:      %s\n", r.RunID)
+	fmt.Printf("status:   %s  duration: %s\n", r.Status, r.Duration)
+	fmt.Printf("started:  %s\n", r.StartedAt.Local().Format(time.RFC3339))
+	fmt.Printf("finished: %s\n", r.FinishedAt.Local().Format(time.RFC3339))
+	if r.Error != "" {
+		fmt.Printf("error:    %s\n", r.Error)
+	}
+	fmt.Println()
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "  STEP\tTYPE\tOK\tDURATION\tERROR")
+	for _, s := range r.Steps {
+		ok := "yes"
+		if !s.OK {
+			ok = "no"
+		}
+		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\n", s.ID, s.Type, ok, s.Duration, truncErr(s.Error, 120))
+	}
+	tw.Flush()
+	if len(r.Output) > 0 {
+		fmt.Println("\noutput:")
+		b, _ := json.MarshalIndent(r.Output, "", "  ")
+		fmt.Println(string(b))
+	}
 }
 
 func cmdRun(args []string) int {

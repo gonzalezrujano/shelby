@@ -251,6 +251,34 @@ func (s *Store) LastRun(slug string) (*RunRecord, error) {
 	return &runs[0], nil
 }
 
+// Run returns the record for a specific run ID under slug, or nil if not found.
+func (s *Store) Run(slug, runID string) (*RunRecord, error) {
+	dir := filepath.Join(s.Root, "runs", slug)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	suffix := "_" + runID + ".json"
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), suffix) {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return nil, err
+		}
+		var r RunRecord
+		if err := json.Unmarshal(b, &r); err != nil {
+			return nil, err
+		}
+		return &r, nil
+	}
+	return nil, nil
+}
+
 // Slugify produces a filesystem-safe identifier: lowercase, alnum+dash only,
 // no leading/trailing dashes.
 func Slugify(name string) string {
