@@ -40,6 +40,8 @@ func Run(args []string) int {
 		return cmdLogs(rest)
 	case "add":
 		return cmdAdd(rest)
+	case "update":
+		return cmdUpdate(rest)
 	case "rm":
 		return cmdRm(rest)
 	case "validate":
@@ -67,6 +69,8 @@ usage: shelby <command> [args]
 
 commands:
   add <file.yaml>       register pipeline (stores abs path; edits live)
+  update <name|slug> <file.yaml>
+                        repoint registration at a new YAML (keeps run history)
   list                  list registered pipelines with last-run status
   show <name|slug>      show pipeline YAML + last run summary
   rm <name|slug>        unregister pipeline (drops run history)
@@ -117,6 +121,30 @@ func cmdAdd(args []string) int {
 		return 1
 	}
 	fmt.Printf("registered: %s  (slug: %s)\n  path: %s\n", reg.Name, reg.Slug, reg.Path)
+	return 0
+}
+
+func cmdUpdate(args []string) int {
+	if len(args) < 2 {
+		fmt.Fprintln(os.Stderr, "update: missing <name|slug> <file.yaml>")
+		return 1
+	}
+	p, err := config.Load(args[1])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "load:", err)
+		return 1
+	}
+	st, err := openStore()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "store:", err)
+		return 1
+	}
+	reg, err := st.Update(args[0], p, args[1])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "update:", err)
+		return 1
+	}
+	fmt.Printf("updated: %s  (slug: %s)\n  path: %s\n", reg.Name, reg.Slug, reg.Path)
 	return 0
 }
 

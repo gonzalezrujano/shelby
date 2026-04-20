@@ -100,6 +100,30 @@ func (s *Store) Add(p *engine.Pipeline, sourcePath string) (Registration, error)
 	return reg, s.writeRegistration(reg)
 }
 
+// Update repoints an existing registration at a new YAML file. Slug and
+// RegisteredAt are preserved so run history stays attached. The new YAML
+// must slugify to the same slug; rename via rm + add.
+func (s *Store) Update(nameOrSlug string, p *engine.Pipeline, sourcePath string) (Registration, error) {
+	reg, err := s.Get(nameOrSlug)
+	if err != nil {
+		return Registration{}, err
+	}
+	newSlug := Slugify(p.Name)
+	if newSlug == "" {
+		return Registration{}, fmt.Errorf("cannot slugify name %q", p.Name)
+	}
+	if newSlug != reg.Slug {
+		return Registration{}, fmt.Errorf("name %q would re-slug %q -> %q; use rm + add to rename", p.Name, reg.Slug, newSlug)
+	}
+	abs, err := filepath.Abs(sourcePath)
+	if err != nil {
+		return Registration{}, err
+	}
+	reg.Name = p.Name
+	reg.Path = abs
+	return reg, s.writeRegistration(reg)
+}
+
 func (s *Store) writeRegistration(reg Registration) error {
 	path := filepath.Join(s.Root, "pipelines", reg.Slug+".json")
 	b, err := json.MarshalIndent(reg, "", "  ")
