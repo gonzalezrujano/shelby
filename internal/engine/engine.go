@@ -6,8 +6,15 @@ import (
 	"time"
 )
 
+// StepObserver is invoked after each step (including nested Then/Else steps
+// dispatched through RunStep). It runs synchronously between steps, so it is
+// safe to use for verbose progress reporting. ResolvedInput is the step Input
+// after ${ref} resolution (nil if the step has no Input).
+type StepObserver func(s Step, resolvedInput map[string]any, out Output, err error)
+
 type Engine struct {
 	executors map[StepType]Executor
+	Observer  StepObserver
 }
 
 func New() *Engine {
@@ -41,7 +48,11 @@ func (e *Engine) RunStep(ctx context.Context, s Step, rc *RunContext) (Output, e
 	if s.Input != nil {
 		r, err := Resolve(s.Input, rc)
 		if err != nil {
-			return Output{StepID: s.ID, OK: false, Error: err.Error()}, err
+			out := Output{StepID: s.ID, OK: false, Error: err.Error()}
+			if e.Observer != nil {
+				e.Observer(s, s.Input, out, err)
+			}
+			return out, err
 		}
 		if m, ok := r.(map[string]any); ok {
 			s.Input = m
@@ -58,5 +69,8 @@ func (e *Engine) RunStep(ctx context.Context, s Step, rc *RunContext) (Output, e
 	out.StepID = s.ID
 	out.StartedAt = start
 	out.Duration = time.Since(start)
+	if e.Observer != nil {
+		e.Observer(s, s.Input, out, err)
+	}
 	return out, err
 }

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -15,6 +16,7 @@ import (
 
 	"shelby/internal/config"
 	"shelby/internal/engine"
+	"shelby/internal/lint"
 	"shelby/internal/runner"
 	"shelby/internal/server"
 	"shelby/internal/store"
@@ -40,6 +42,10 @@ func Run(args []string) int {
 		return cmdAdd(rest)
 	case "rm":
 		return cmdRm(rest)
+	case "validate":
+		return cmdValidate(rest)
+	case "lint":
+		return cmdLint(rest)
 	case "tui":
 		return cmdTUI(rest)
 	case "serve":
@@ -64,8 +70,13 @@ commands:
   list                  list registered pipelines with last-run status
   show <name|slug>      show pipeline YAML + last run summary
   rm <name|slug>        unregister pipeline (drops run history)
-  run <name|file.yaml>  execute pipeline; registered runs are recorded
+  run [-v|--debug] <name|file.yaml>
+                        execute pipeline; registered runs are recorded
+                        -v        print each step's status/duration/data as it runs
+                        --debug   like -v plus resolved input and full data JSON
   logs <name|slug>      show recent run history
+  validate <name|file>  check YAML for structural/semantic errors
+  lint <name|file>      report style and best-practice warnings
   tui                   interactive dashboard
   serve [-addr :8080]   run scheduler daemon + web dashboard
 
@@ -254,11 +265,19 @@ func cmdLogs(args []string) int {
 }
 
 func cmdRun(args []string) int {
-	if len(args) < 1 {
+	fs := flag.NewFlagSet("run", flag.ContinueOnError)
+	verbose := fs.Bool("v", false, "verbose: print each step's status, duration, and data as it finishes")
+	fs.BoolVar(verbose, "verbose", false, "alias for -v")
+	debug := fs.Bool("debug", false, "debug: verbose + dump resolved input and full data/error for each step")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	rest := fs.Args()
+	if len(rest) < 1 {
 		fmt.Fprintln(os.Stderr, "run: missing <name|file.yaml>")
 		return 1
 	}
-	target := args[0]
+	target := rest[0]
 
 	st, storeErr := openStore()
 	var (
@@ -301,24 +320,34 @@ func cmdRun(args []string) int {
 		recStore = st
 		slug = reg.Slug
 	}
-	res := runner.Execute(context.Background(), p, recStore, slug)
 
-	fmt.Printf("pipeline: %s  (run: %s)\n", p.Name, res.RunID)
-	fmt.Printf("source:   %s\n", shortPath(loaded))
-	fmt.Printf("interval: %s\n\n", p.Interval)
-	fmt.Println("steps:")
-	for _, s := range p.Steps {
-		out := res.RC.Steps[s.ID]
-		status := "ok"
-		if !out.OK {
-			status = "fail"
-		}
-		fmt.Printf("  - %-14s %-12s %-6s %s\n", s.ID, s.Type, status, out.Duration)
-		if out.Error != "" {
-			fmt.Printf("      error: %s\n", truncErr(out.Error, 200))
-		}
+	var obs engine.StepObserver
+	if *verbose || *debug {
+		fmt.Printf("pipeline: %s\nsource:   %s\ninterval: %s\n\nexecuting steps:\n", p.Name, shortPath(loaded), p.Interval)
+		obs = stepPrinter(*debug)
 	}
-	fmt.Println()
+	res := runner.ExecuteWithObserver(context.Background(), p, recStore, slug, obs)
+
+	if *verbose || *debug {
+		fmt.Printf("\nrun: %s  duration: %s\n\n", res.RunID, res.Finished.Sub(res.Started))
+	} else {
+		fmt.Printf("pipeline: %s  (run: %s)\n", p.Name, res.RunID)
+		fmt.Printf("source:   %s\n", shortPath(loaded))
+		fmt.Printf("interval: %s\n\n", p.Interval)
+		fmt.Println("steps:")
+		for _, s := range p.Steps {
+			out := res.RC.Steps[s.ID]
+			status := "ok"
+			if !out.OK {
+				status = "fail"
+			}
+			fmt.Printf("  - %-14s %-12s %-6s %s\n", s.ID, s.Type, status, out.Duration)
+			if out.Error != "" {
+				fmt.Printf("      error: %s\n", truncErr(out.Error, 200))
+			}
+		}
+		fmt.Println()
+	}
 
 	if res.Output != nil {
 		b, _ := json.MarshalIndent(res.Output, "", "  ")
@@ -382,11 +411,155 @@ func cmdServe(args []string) int {
 	return 0
 }
 
+// loadTarget resolves a CLI arg to a pipeline + source path. Accepts a YAML
+// file path or a registered name/slug.
+func loadTarget(target string) (*engine.Pipeline, string, error) {
+	if looksLikeFile(target) {
+		p, err := config.Load(target)
+		if err != nil {
+			return nil, target, err
+		}
+		abs, _ := filepath.Abs(target)
+		return p, abs, nil
+	}
+	st, err := openStore()
+	if err != nil {
+		return nil, "", fmt.Errorf("store: %w", err)
+	}
+	reg, err := st.Get(target)
+	if err != nil {
+		return nil, "", err
+	}
+	p, err := config.Load(reg.Path)
+	if err != nil {
+		return nil, reg.Path, err
+	}
+	return p, reg.Path, nil
+}
+
+func cmdValidate(args []string) int {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "validate: missing <name|file.yaml>")
+		return 1
+	}
+	p, src, err := loadTarget(args[0])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "load:", err)
+		return 1
+	}
+	issues := lint.Validate(p)
+	lint.Sort(issues)
+	fmt.Printf("validate: %s\n", shortPath(src))
+	if len(issues) == 0 {
+		fmt.Println("ok")
+		return 0
+	}
+	for _, i := range issues {
+		fmt.Println(i)
+	}
+	fmt.Printf("\n%d error(s)\n", len(issues))
+	return 1
+}
+
+func cmdLint(args []string) int {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "lint: missing <name|file.yaml>")
+		return 1
+	}
+	p, src, err := loadTarget(args[0])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "load:", err)
+		return 1
+	}
+	issues := lint.Lint(p)
+	lint.Sort(issues)
+	fmt.Printf("lint: %s\n", shortPath(src))
+	if len(issues) == 0 {
+		fmt.Println("no warnings")
+		return 0
+	}
+	for _, i := range issues {
+		fmt.Println(i)
+	}
+	fmt.Printf("\n%d warning(s)\n", len(issues))
+	return 0
+}
+
 func shortPath(p string) string {
 	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(p, home) {
 		return "~" + p[len(home):]
 	}
 	return p
+}
+
+// stepPrinter returns a StepObserver that prints per-step progress to stdout.
+// If debug is true, it also dumps resolved input and full data/error JSON.
+func stepPrinter(debug bool) engine.StepObserver {
+	return func(s engine.Step, resolvedInput map[string]any, out engine.Output, err error) {
+		status := "ok"
+		if !out.OK {
+			status = "fail"
+		}
+		fmt.Printf("  - %-14s %-12s %-6s %s\n", s.ID, s.Type, status, out.Duration)
+		if debug && resolvedInput != nil {
+			if b, jerr := json.MarshalIndent(resolvedInput, "      ", "  "); jerr == nil {
+				fmt.Printf("      input:\n      %s\n", string(b))
+			}
+		}
+		if len(out.Data) > 0 {
+			if debug {
+				if b, jerr := json.MarshalIndent(out.Data, "      ", "  "); jerr == nil {
+					fmt.Printf("      data:\n      %s\n", string(b))
+				}
+			} else {
+				fmt.Printf("      data: %s\n", summarizeData(out.Data))
+			}
+		}
+		if out.Error != "" {
+			limit := 200
+			if debug {
+				limit = 4000
+			}
+			fmt.Printf("      error: %s\n", truncErr(out.Error, limit))
+		}
+		if err != nil && out.Error == "" {
+			fmt.Printf("      err: %v\n", err)
+		}
+	}
+}
+
+// summarizeData renders a one-line view of step data. Primitive values print
+// inline; nested maps/arrays collapse to a size hint so long bodies don't
+// dominate the verbose stream.
+func summarizeData(m map[string]any) string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%s", k, summarizeValue(m[k])))
+	}
+	return strings.Join(parts, " ")
+}
+
+func summarizeValue(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return "nil"
+	case string:
+		if len(x) > 60 {
+			return fmt.Sprintf("%q", x[:57]+"...")
+		}
+		return fmt.Sprintf("%q", x)
+	case map[string]any:
+		return fmt.Sprintf("{%d keys}", len(x))
+	case []any:
+		return fmt.Sprintf("[%d items]", len(x))
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 func truncErr(s string, n int) string {

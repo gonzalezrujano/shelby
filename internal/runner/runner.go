@@ -42,7 +42,14 @@ type Result struct {
 // Execute runs a pipeline end-to-end. If recordStore and slug are both set,
 // the run is persisted to history.
 func Execute(ctx context.Context, p *engine.Pipeline, recordStore *store.Store, slug string) Result {
+	return ExecuteWithObserver(ctx, p, recordStore, slug, nil)
+}
+
+// ExecuteWithObserver is like Execute but invokes obs after each step (including
+// nested Then/Else steps). Pass nil to disable.
+func ExecuteWithObserver(ctx context.Context, p *engine.Pipeline, recordStore *store.Store, slug string, obs engine.StepObserver) Result {
 	eng := NewEngine()
+	eng.Observer = obs
 	runID := NewRunID()
 	started := time.Now()
 	rc, err := eng.Run(ctx, p, runID)
