@@ -106,10 +106,24 @@ The `packages/contract` is the keystone: both Shelby's Go server and the TS fron
 
 ## Sequencing
 
-1. Add `/api/pipelines/:slug/series` to `shelby serve`. Define the contract JSON schema in this repo.
+1. ~~Add `/api/pipelines/:slug/series` to `shelby serve`. Define the contract JSON schema in this repo.~~ **Shipped.** See `widget-contract.schema.json` and `internal/server/api.go`.
 2. Bootstrap `shelby-viz` separate repo. Static dashboard + hand-written Web Component widgets against the contract. No AI yet.
 3. Layer in the LLM generator. Start with one widget kind (timeseries) and expand.
 4. Marketplace + sharing.
+
+## Pending in Shelby (tracked here; pick up after shelby-viz v0)
+
+Backend work deferred to unblock the viz repo first. Revisit once real widgets surface concrete needs.
+
+- **Server-side aggregations on `/series`.** Today only `agg=none`. Add `avg`, `sum`, `min`, `max`, `p50/p95/p99` with a `bucket=<duration>` param (e.g. `bucket=5m`) so a 7-day view doesn't ship 10k points. Keep the raw fallback.
+- **Multi-field `/series`.** Accept `field=a,b,c` → multiple named series in one payload under `points_by_field` or a `series[]` array. Cuts N round-trips for multi-line charts.
+- **Range filter.** `since`/`until` ISO-8601 params. Today we only have `limit`. Range is more useful than count once users think in wall-clock windows.
+- **Labels / grouped series.** The contract already reserves `labels`. Populate them from pipeline outputs (e.g. per-host metrics) via a grouping param.
+- **Other kinds beyond timeseries.** `gauge`, `scalar`, `table` endpoints (or variants of `/series`). Decide shape when the first non-timeseries widget is needed.
+- **Auth on the API.** Bearer token gate so `shelby serve` is safe to expose beyond localhost. Not needed for the local-first v0.
+- **Stable run ordering within the same second.** `store.Runs` sorts by filename; sub-second order is lost. Either embed nanoseconds in the filename prefix, or have `Runs` sort by `StartedAt` after loading. Not blocking — `/series` already sorts points by real timestamp — but `logs` and the TUI inherit the same quirk.
+- **Versioning join semantics.** When pipeline YAML changes mid-series (see `pipeline-versioning.md`), surface a version boundary in the payload so widgets can render an explicit gap instead of a misleading line.
+- **Rate limit / payload caps.** `limit` is clamped to 1000, but a malicious or buggy widget could still pound the endpoint. Add a per-IP token bucket on `/api/*` once this is deployed beyond localhost.
 
 ## Reference
 

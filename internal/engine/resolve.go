@@ -122,14 +122,26 @@ func descend(cur any, p, full string) (any, error) {
 }
 
 // FinalOutput resolves the pipeline's declared output map against rc.
+// When the pipeline has no explicit output: section, all step outputs are
+// auto-captured under their step IDs so the data is always queryable.
 func FinalOutput(p *Pipeline, rc *RunContext) (map[string]any, error) {
-	out := make(map[string]any, len(p.Output))
-	for k, expr := range p.Output {
-		v, err := resolveString(expr, rc)
-		if err != nil {
-			return nil, fmt.Errorf("output %s: %w", k, err)
+	if len(p.Output) > 0 {
+		out := make(map[string]any, len(p.Output))
+		for k, expr := range p.Output {
+			v, err := resolveString(expr, rc)
+			if err != nil {
+				return nil, fmt.Errorf("output %s: %w", k, err)
+			}
+			out[k] = v
 		}
-		out[k] = v
+		return out, nil
 	}
-	return out, nil
+	// Auto-capture: expose every step's data under its ID.
+	auto := make(map[string]any, len(rc.Steps))
+	for id, stepOut := range rc.Steps {
+		if len(stepOut.Data) > 0 {
+			auto[id] = stepOut.Data
+		}
+	}
+	return auto, nil
 }
