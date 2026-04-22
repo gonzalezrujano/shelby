@@ -1,0 +1,149 @@
+# Shelby: YAML-driven Observation & Metrics Engine
+
+Shelby is a Go-based data collection engine that executes YAML-defined pipelines to collect, transform, and report metrics from various sources (APIs, system, logs, scripts). It is **read-only** by design—it never performs deployments or writes to production databases.
+
+## Pipeline Structure
+
+A pipeline is defined in a YAML file with the following root fields:
+
+- `name`: (Required) Name of the pipeline.
+- `description`: (Optional) Description of what the pipeline does.
+- `interval`: (Optional) Frequency of execution (e.g., `30s`, `1m`, `1h`). `0` or omitted means manual run only.
+- `steps`: (Required) A list of step objects executed sequentially.
+- `output`: (Optional) A map of final key-value pairs to record, using expressions to reference step outputs.
+
+## Step Types
+
+Each step must have an `id` and a `type`.
+
+### 1. `http_get`
+Fetches data from a URL.
+- `source`: The URL to fetch. Supports `${env.VAR}` and `${steps.id.output}` interpolation.
+- `headers`: Map of HTTP headers.
+- `extract`: (Optional) Dot-path to a field in the returned JSON body.
+
+### 2. `sys_stat`
+Collects system metrics using `gopsutil`.
+- `source`: Type of metric. Options: `cpu`, `memory`, `host`, or a filesystem path for disk usage.
+- `extract`: (Optional) Specific field to extract (e.g., `used_percent`).
+
+### 3. `shell`
+Executes a shell command and parses the output.
+- `command`: The command to run.
+- `parse`: Parser configuration (see Parsers section).
+
+### 4. `script`
+Runs an external script (Node, Python, Rust, etc.) with a JSON contract.
+- `runtime`: `node`, `python`, `bash`, `sh`, or any executable name.
+- `file`: Path to the script file.
+- `input`: Map of data passed to the script via stdin JSON.
+- `env_keys`: Whitelist of environment variables to forward.
+
+### 5. `conditional`
+Control flow based on prior data.
+- `when`: An expression that must evaluate to a boolean (e.g., `"${steps.id.output.val} > 100"`).
+- `then`: List of steps to run if `when` is true.
+- `else`: List of steps to run if `when` is false.
+
+### 6. `aggregator`
+Performs operations over arrays of data from previous steps.
+- `op`: `sum`, `avg`, `min`, `max`, `count`, `merge`.
+- `over`: Array of references to arrays (e.g., `["${steps.id.output.records}"]`).
+- `field`: Field name to aggregate if the elements are maps.
+
+## Expressions & References
+
+Shelby uses a specific syntax to interpolate data:
+
+- `${steps.<id>.output.<field>}`: References the output of a previous step.
+- `${env.<VAR>}`: References an environment variable from the host.
+- **Nested pathing**: `${steps.my_step.output.records.0.status}`.
+
+## Parsers (for `shell` step)
+
+When using `type: shell`, you can structure the `stdout` using a parser:
+
+- `engine: json`: Parses stdout as JSON. Use `path:` to select a sub-field.
+- `engine: regex`: Uses `pattern:` with named captures `(?P<name>...)`.
+- `engine: textfsm`: Uses a `template:` file path to parse structured command output (e.g., `df`, `ip addr`).
+- `engine: lines`: Splits output by newline. Use `skip:` to drop header lines.
+
+**Type Coercion**: Any parser can include a `types` map to convert strings to `int`, `float`, or `bool`.
+Example: `types: { usage: int, active: bool }`.
+
+## Script Contract (JSON JSON over Stdin/Stdout)
+
+Scripts receive a JSON object on `stdin` containing `input`, `context`, and `env`.
+They must output a single JSON line on `stdout` (or wrap it in `<<<SHELBY_OUT` and `SHELBY_OUT>>>`):
+```json
+{"ok": true, "data": {"result": 42}}
+```
+
+## Example Pipeline
+
+```yaml
+name: "API Health & Disk Monitor"
+description: "Checks if the API is up and disk space is sufficient"
+interval: 1m
+
+steps:
+  - id: health_check
+    type: http_get
+    source: "https://api.example.com/health"
+    extract: status
+
+  - id: disk_usage
+    type: sys_stat
+    source: "/"
+    extract: used_percent
+
+  - id: check_alert
+    type: conditional
+    when: "${steps.health_check.output.value} != 'UP' || ${steps.disk_usage.output.value} > 90"
+    then:
+      - id: notify_slack
+        type: shell
+        command: "curl -X POST ${env.SLACK_URL} -d '{\"text\": \"Alert: System Issues!\"}'"
+
+output:
+  api_status: "${steps.health_check.output.value}"
+  disk_percent: "${steps.disk_usage.output.value}"
+```
+
+## Best Practices for Information Extraction
+
+1. **Use `http_get` + `extract`** for simple JSON APIs to avoid unnecessary shell overhead.
+2. **Use `shell` + `regex`** for unstructured CLI output when you only need specific values.
+3. **Use `shell` + `textfsm`** for tabular CLI output (like `df`, `ls`, `netstat`) to get structured records.
+4. **Use `script`** for multi-step extractions (e.g., scraping HTML, complex auth flows) where YAML logic becomes too verbose.
+5. **Leverage `aggregator`** to clean up and simplify output maps before recording them.
+6. **Use `types`** in parsers to ensure downstream logic (like `conditional` or `aggregator`) works with the correct data types.
+
+## Example: Complex Data Extraction
+
+```yaml
+name: "Server Inventory"
+steps:
+  - id: get_disks
+    type: shell
+    command: "df -h"
+    parse:
+      engine: textfsm
+      template: "./templates/df.textfsm"
+      types: { Size: float, Used: float }
+
+  - id: high_usage
+    type: aggregator
+    op: merge
+    over: ["${steps.get_disks.output.records}"]
+
+  - id: check_system
+    type: sys_stat
+    source: cpu
+    extract: cpu_count
+
+output:
+  disks: "${steps.get_disks.output.records}"
+  cpus: "${steps.check_system.output.value}"
+```
+
