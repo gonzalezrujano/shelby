@@ -1,0 +1,111 @@
+name: System Health
+description: CPU, memory and network via the system-health pipeline
+refresh: 30s
+
+layout:
+  columns: 12
+
+vars:
+  shelby_url: http://localhost:8080
+
+widgets:
+  # ── Row 1: CPU overview ───────────────────────────────────────────────────
+
+  - id: cpu-gauge
+    title: CPU Now
+    type: gauge
+    col: 1
+    row: 1
+    width: 3
+    height: 3
+    binding:
+      value:
+        pipeline: system-health
+        series: cpu.percent
+        limit: 2
+    config:
+      min: 0
+      max: 100
+      unit: "%"
+
+  - id: cpu-history
+    title: CPU History (last 60 runs)
+    type: timeseries
+    col: 4
+    row: 1
+    width: 9
+    height: 3
+    binding:
+      series:
+        pipeline: system-health
+        series: cpu.percent
+        limit: 60
+    config:
+      unit: "%"
+      color: "#00d4aa"
+
+  # ── Row 2: Memory (built-in counter + custom donut) ───────────────────────
+
+  - id: mem-counter
+    title: Memory Used
+    type: counter
+    col: 1
+    row: 4
+    width: 3
+    height: 3
+    binding:
+      value:
+        pipeline: system-health
+        series: memory.used_gb
+        limit: 2
+    config:
+      unit: " GB"
+
+  - id: mem-donut
+    title: Memory Breakdown
+    type: custom
+    template: widgets/memory-donut.html.j2
+    col: 4
+    row: 4
+    width: 4
+    height: 3
+    binding:
+      used:
+        pipeline: system-health
+        series: memory.used_gb
+        limit: 2
+    config:
+      total: 16        # total GB — adjust to your machine
+      unit: GB
+
+  # ── Row 2: Pipeline status ────────────────────────────────────────────────
+
+  - id: pipeline-ok
+    title: Pipeline Status
+    type: status
+    col: 8
+    row: 4
+    width: 2
+    height: 3
+    binding:
+      status:
+        pipeline: system-health
+        series: cpu.percent
+        limit: 1
+    config:
+      ok_above: 0.1    # any CPU reading > 0.1 means the pipeline ran
+
+  # ── Row 3: Recent run log ─────────────────────────────────────────────────
+
+  - id: run-log
+    title: Recent CPU Readings
+    type: table
+    col: 10
+    row: 4
+    width: 3
+    height: 3
+    binding:
+      rows:
+        pipeline: system-health
+        series: cpu.percent
+        limit: 20

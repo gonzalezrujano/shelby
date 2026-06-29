@@ -1,0 +1,30 @@
+{%- set series = data.status -%}
+{#  Determine status string from the series:
+    - If last value is 1 / truthy → ok
+    - If last value is 0          → error
+    - Override via config.ok_above threshold                             #}
+{%- set raw = series.last | default(0) | float -%}
+{%- if config.ok_above is defined -%}
+  {%- set status = 'ok' if raw >= config.ok_above | float else 'warning' -%}
+{%- elif config.error_above is defined -%}
+  {%- set status = 'error' if raw >= config.error_above | float else 'ok' -%}
+{%- else -%}
+  {%- set status = 'ok' if raw else 'error' -%}
+{%- endif -%}
+{%- set colors = {'ok': '#4caf50', 'warning': '#ff9800', 'error': '#f44336', 'unknown': '#555'} -%}
+{%- set color = colors.get(status, '#555') -%}
+<style>
+  :host { display: flex; align-items: center; justify-content: center; height: 100%; }
+  .wrap  { display: flex; align-items: center; gap: 10px; }
+  .dot   { width: 12px; height: 12px; border-radius: 50%; background: {{ color }}; box-shadow: 0 0 8px {{ color }}88; flex-shrink: 0; }
+  .info  { display: flex; flex-direction: column; gap: 2px; }
+  .state { font-size: .9rem; font-weight: 700; color: {{ color }}; text-transform: uppercase; letter-spacing: .06em; }
+  .label { font-size: .7rem; color: #555; }
+</style>
+<div class="wrap">
+  <div class="dot"></div>
+  <div class="info">
+    <span class="state">{{ status }}</span>
+    <span class="label">{{ meta.title }}</span>
+  </div>
+</div>

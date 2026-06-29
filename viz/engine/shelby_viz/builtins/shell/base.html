@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ dashboard.name }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d1a;
+      color: #e0e0ff;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .shelby-header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #1e1e3a;
+    }
+    .shelby-header h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: 0.02em; }
+    .shelby-header p { font-size: 0.8rem; color: #666; }
+    .shelby-meta { margin-left: auto; font-size: 0.7rem; color: #444; }
+
+    .shelby-grid {
+      display: grid;
+      grid-template-columns: repeat({{ dashboard.columns }}, 1fr);
+      gap: 12px;
+    }
+
+    .shelby-cell {
+      background: #13132b;
+      border: 1px solid #1e1e3a;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    shelby-widget {
+      display: block;
+      height: 100%;
+      min-height: 120px;
+    }
+  </style>
+</head>
+<body>
+  <header class="shelby-header">
+    <h1>{{ dashboard.name }}</h1>
+    {% if dashboard.description %}
+    <p>{{ dashboard.description }}</p>
+    {% endif %}
+    <span class="shelby-meta">shelby-viz · refresh {{ dashboard.refresh }}s</span>
+  </header>
+
+  <div class="shelby-grid">
+    {% for widget in dashboard.widgets %}
+    <div class="shelby-cell"
+         style="grid-column: {{ widget.col }} / span {{ widget.width }}; grid-row: {{ widget.row }} / span {{ widget.height }};">
+      <shelby-widget
+        data-widget-id="{{ widget.id }}"
+        data-refresh="{{ dashboard.refresh }}">
+        {% if widget.id in initial_renders %}
+        <template shadowrootmode="open">
+          {{ initial_renders[widget.id] | safe }}
+        </template>
+        {% endif %}
+      </shelby-widget>
+    </div>
+    {% endfor %}
+  </div>
+
+  <script src="/static/runtime.js"></script>
+  <script>
+    ShelbyViz.init({ refresh: {{ dashboard.refresh }} });
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{%- set val   = data.value.last   | default(0) | float -%}
+{%- set trend = data.value.trend  | default(0) | float -%}
+{%- set tdir  = 'up' if trend > 0 else ('down' if trend < 0 else 'flat') -%}
+{%- set ticon = '↑' if trend > 0 else ('↓' if trend < 0 else '→') -%}
+<style>
+  :host { display: flex; align-items: center; justify-content: center; height: 100%; }
+  .wrap  { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px; }
+  .value { font-size: 2.4rem; font-weight: 700; color: #e0e0ff; line-height: 1; }
+  .label { font-size: .72rem; color: #666; }
+  .trend { font-size: .82rem; }
+  .up    { color: #4caf50; }
+  .down  { color: #f44336; }
+  .flat  { color: #555; }
+</style>
+<div class="wrap">
+  <div class="value">{{ val | round(1) }}{{ config.unit | default('') }}</div>
+  <div class="label">{{ meta.title }}</div>
+  <div class="trend {{ tdir }}">{{ ticon }} {{ trend | abs | round(2) }}</div>
+</div>

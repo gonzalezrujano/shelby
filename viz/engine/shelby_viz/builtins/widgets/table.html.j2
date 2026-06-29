@@ -1,0 +1,35 @@
+{%- set series = data.rows -%}
+{%- set points = series.points | reverse | list -%}
+<style>
+  :host { display: block; height: 100%; overflow: auto; }
+  .wrap  { padding: 10px 12px; }
+  .title { font-size: .72rem; color: #666; margin-bottom: 8px; }
+  table  { width: 100%; border-collapse: collapse; font-size: .78rem; }
+  th     { color: #555; font-weight: 600; text-align: left; padding: 3px 6px; border-bottom: 1px solid #1e1e3a; }
+  td     { padding: 3px 6px; border-bottom: 1px solid #111129; }
+  tr:last-child td { border-bottom: none; }
+  .run   { color: #333; font-size: .65rem; font-family: monospace; }
+</style>
+<div class="wrap">
+  <div class="title">{{ meta.title }}</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Value {{ config.unit | default('') }}</th>
+        <th>Run</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in points[:20] %}
+      <tr>
+        <td>{{ p.t }}</td>
+        <td>{{ p.v | round(3) }}</td>
+        <td class="run">{{ (p.run_id or '') [:8] }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" style="color:#444;text-align:center">no data</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,28 @@
+{%- set series = data.series -%}
+{%- set points = series.points -%}
+{%- set mx     = series.max if series.max > 0 else 1 -%}
+{%- set color  = config.color | default('#00d4aa') -%}
+<style>
+  :host { display: block; height: 100%; }
+  .wrap   { display: flex; flex-direction: column; height: 100%; padding: 10px 12px; box-sizing: border-box; }
+  .header { display: flex; justify-content: space-between; font-size: .72rem; color: #666; margin-bottom: 8px; }
+  .latest { color: {{ color }}; font-weight: 600; }
+  .chart  { flex: 1; display: flex; align-items: flex-end; gap: 2px; overflow: hidden; }
+  .bar    { flex: 1; border-radius: 2px 2px 0 0; opacity: .8; min-width: 2px; background: {{ color }}; transition: height .3s; }
+  .footer { display: flex; justify-content: space-between; font-size: .68rem; color: #444; margin-top: 6px; }
+</style>
+<div class="wrap">
+  <div class="header">
+    <span>{{ meta.title }}</span>
+    <span class="latest">{{ series.last | round(2) }} {{ config.unit | default('') }}</span>
+  </div>
+  <div class="chart">
+    {% for p in points %}
+    <div class="bar" style="height:{{ (p.v / mx * 100) | round(1) }}%" title="{{ p.t }}: {{ p.v | round(3) }}"></div>
+    {% endfor %}
+  </div>
+  <div class="footer">
+    <span>avg {{ series.avg | round(2) }}</span>
+    <span>max {{ series.max | round(2) }}</span>
+  </div>
+</div>

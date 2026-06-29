@@ -1,0 +1,49 @@
+{#
+  Custom widget: memory-donut.html.j2
+  Shows used vs total memory as an SVG donut chart.
+
+  Expected binding:
+    data.used  → SeriesData  (series: memory.used_gb)
+
+  Expected config:
+    config.total  → total GB (default 16)
+    config.unit   → label suffix (default GB)
+#}
+{%- set used  = data.used.last  | default(0) | float | round(1) -%}
+{%- set total = config.total    | default(16) | float -%}
+{%- set pct   = (used / total * 100) | round(0) | int -%}
+{%- set pct   = [0, [pct, 100] | min] | max -%}
+{%- set color = '#4caf50' if pct < 60 else ('#ff9800' if pct < 85 else '#f44336') -%}
+{%- set circ  = 188.4 -%}
+{%- set dash  = (pct / 100 * circ) | round(1) -%}
+<style>
+  :host { display: flex; align-items: center; justify-content: center; height: 100%; }
+  .wrap  { display: flex; align-items: center; gap: 16px; padding: 12px; }
+  .info  { display: flex; flex-direction: column; gap: 4px; }
+  .used  { font-size: 1.5rem; font-weight: 700; color: {{ color }}; line-height: 1; }
+  .label { font-size: .72rem; color: #666; }
+  .sub   { font-size: .78rem; color: #555; }
+</style>
+<div class="wrap">
+  <svg width="88" height="88" viewBox="0 0 88 88">
+    <circle cx="44" cy="44" r="30" fill="none" stroke="#1e1e3a" stroke-width="12"/>
+    <circle cx="44" cy="44" r="30" fill="none"
+            stroke="{{ color }}"
+            stroke-width="12"
+            stroke-dasharray="{{ dash }} {{ circ }}"
+            stroke-linecap="round"
+            transform="rotate(-90 44 44)"
+            style="transition: stroke-dasharray .4s ease"/>
+    <text x="44" y="48" text-anchor="middle"
+          fill="{{ color }}" font-size="13" font-weight="700">{{ pct }}%</text>
+  </svg>
+  <div class="info">
+    <div class="used">{{ used }} {{ config.unit | default('GB') }}</div>
+    <div class="label">{{ meta.title }}</div>
+    <div class="sub">of {{ total | int }} {{ config.unit | default('GB') }} total</div>
+    <div class="sub" style="color:#333;margin-top:2px">
+      trend {{ data.used.trend | round(2) | abs }} {{ config.unit | default('GB') }}
+      {% if data.used.trend > 0 %}↑{% elif data.used.trend < 0 %}↓{% else %}→{% endif %}
+    </div>
+  </div>
+</div>

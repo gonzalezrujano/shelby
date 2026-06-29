@@ -1,0 +1,20 @@
+/*
+  Optional: load this from dashboard.yml as a custom asset to override
+  the default shelby-viz dark theme.
+
+  Usage in dashboard.yml:
+    assets:
+      - assets/theme.css
+
+  (asset loading not yet implemented — this file is here as a placeholder
+   showing where you'd put per-dashboard CSS overrides)
+*/
+
+:root {
+  --shelby-bg:        #0d0d1a;
+  --shelby-cell-bg:   #13132b;
+  --shelby-border:    #1e1e3a;
+  --shelby-text:      #e0e0ff;
+  --shelby-muted:     #666;
+  --shelby-accent:    #00d4aa;
+}
