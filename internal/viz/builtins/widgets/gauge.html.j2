@@ -1,0 +1,35 @@
+{%- set val = data.value.Last|default:0|float -%}
+{%- set mn = config.min|default:0|float -%}
+{%- set mx = config.max|default:100|float -%}
+{%- set span = mx - mn -%}
+{%- if span <= 0 -%}{%- set span = 1 -%}{%- endif -%}
+{%- set pct = val - mn -%}
+{%- set pct = pct / span * 100 -%}
+{%- if pct < 0 -%}{%- set pct = 0 -%}{%- endif -%}
+{%- if pct > 100 -%}{%- set pct = 100 -%}{%- endif -%}
+{%- set hue = 120 - pct * 1.2 -%}
+{%- set rot = pct / 100 * 180 - 180 -%}
+<style>
+  :host { display: flex; align-items: center; justify-content: center; height: 100%; }
+  .wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; }
+  .arc  { position: relative; width: 110px; height: 55px; overflow: hidden; }
+  .bg, .fill {
+    position: absolute;
+    width: 110px; height: 110px;
+    border-radius: 50%;
+    border: 11px solid transparent;
+    clip-path: inset(0 0 50% 0);
+  }
+  .bg   { border-color: #1e1e3a; }
+  .fill { border-color: hsl({{ hue|floatformat:1 }}, 65%, 55%); transform: rotate({{ rot|floatformat:1 }}deg); transform-origin: 55px 55px; transition: transform .4s ease; }
+  .value { font-size: 1.9rem; font-weight: 700; color: hsl({{ hue|floatformat:1 }}, 65%, 65%); line-height: 1; }
+  .label { font-size: .72rem; color: #666; }
+</style>
+<div class="wrap">
+  <div class="arc">
+    <div class="bg"></div>
+    <div class="fill"></div>
+  </div>
+  <div class="value">{{ val|floatformat:1 }}{{ config.unit|default:"" }}</div>
+  <div class="label">{{ meta.title }}</div>
+</div>

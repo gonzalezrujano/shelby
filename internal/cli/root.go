@@ -56,6 +56,8 @@ func Run(args []string) int {
 		return cmdTUI(rest)
 	case "serve":
 		return cmdServe(rest)
+	case "viz":
+		return cmdViz(rest)
 	case "-h", "--help", "help":
 		printUsage()
 		return 0
@@ -89,6 +91,8 @@ commands:
   lint <name|file>      report style and best-practice warnings
   tui                   interactive dashboard
   serve [-addr :8080]   run scheduler daemon + web dashboard
+  viz <subcommand>      dashboard visualization engine
+                        viz serve|sandbox|init|build|validate
 
 Environment:
   SHELBY_HOME           override ~/.shelby`)

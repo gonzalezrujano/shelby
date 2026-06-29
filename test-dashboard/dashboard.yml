@@ -1,0 +1,11 @@
+name: test-dashboard
+description: ''
+refresh: 30s
+
+layout:
+  columns: 12
+
+vars:
+  shelby_url: http://localhost:8080
+
+widgets: []

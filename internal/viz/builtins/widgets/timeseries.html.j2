@@ -1,7 +1,8 @@
 {%- set series = data.series -%}
-{%- set points = series.points -%}
-{%- set mx     = series.max if series.max > 0 else 1 -%}
-{%- set color  = config.color | default('#00d4aa') -%}
+{%- set points = series.Points -%}
+{%- set mx = series.Max|float -%}
+{%- if mx <= 0 -%}{%- set mx = 1.0 -%}{%- endif -%}
+{%- set color = config.color|default:"#00d4aa" -%}
 <style>
   :host { display: block; height: 100%; }
   .wrap   { display: flex; flex-direction: column; height: 100%; padding: 10px 12px; box-sizing: border-box; }
@@ -14,15 +15,16 @@
 <div class="wrap">
   <div class="header">
     <span>{{ meta.title }}</span>
-    <span class="latest">{{ series.last | round(2) }} {{ config.unit | default('') }}</span>
+    <span class="latest">{{ series.Last|floatformat:2 }} {{ config.unit|default:"" }}</span>
   </div>
   <div class="chart">
     {% for p in points %}
-    <div class="bar" style="height:{{ (p.v / mx * 100) | round(1) }}%" title="{{ p.t }}: {{ p.v | round(3) }}"></div>
+    {%- set bar_h = p.V / mx * 100 -%}
+    <div class="bar" style="height:{{ bar_h|floatformat:1 }}%" title="{{ p.T }}: {{ p.V|floatformat:3 }}"></div>
     {% endfor %}
   </div>
   <div class="footer">
-    <span>avg {{ series.avg | round(2) }}</span>
-    <span>max {{ series.max | round(2) }}</span>
+    <span>avg {{ series.Avg|floatformat:2 }}</span>
+    <span>max {{ series.Max|floatformat:2 }}</span>
   </div>
 </div>

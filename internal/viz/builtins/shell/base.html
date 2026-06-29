@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ dashboard.name }}</title>
+  <title>{{ dashboard.Name }}</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -29,7 +29,7 @@
 
     .shelby-grid {
       display: grid;
-      grid-template-columns: repeat({{ dashboard.columns }}, 1fr);
+      grid-template-columns: repeat({{ dashboard.Columns }}, 1fr);
       gap: 12px;
     }
 
@@ -63,23 +63,23 @@
 </head>
 <body>
   <header class="shelby-header">
-    <h1>{{ dashboard.name }}</h1>
-    {% if dashboard.description %}
-    <p>{{ dashboard.description }}</p>
+    <h1>{{ dashboard.Name }}</h1>
+    {% if dashboard.Description %}
+    <p>{{ dashboard.Description }}</p>
     {% endif %}
-    <span class="shelby-meta">shelby-viz · refresh {{ dashboard.refresh }}s</span>
+    <span class="shelby-meta">shelby-viz &middot; refresh {{ dashboard.Refresh }}s</span>
   </header>
 
   <div class="shelby-grid">
-    {% for widget in dashboard.widgets %}
+    {% for wr in widget_renders %}
     <div class="shelby-cell"
-         style="--sc:{{ widget.col }};--sw:{{ widget.width }};--sr:{{ widget.row }};--sh:{{ widget.height }};">
+         style="--sc:{{ wr.Widget.Col }};--sw:{{ wr.Widget.Width }};--sr:{{ wr.Widget.Row }};--sh:{{ wr.Widget.Height }};">
       <shelby-widget
-        data-widget-id="{{ widget.id }}"
-        data-refresh="{{ dashboard.refresh }}">
-        {% if widget.id in initial_renders %}
+        data-widget-id="{{ wr.Widget.Id }}"
+        data-refresh="{{ dashboard.Refresh }}">
+        {% if wr.Html %}
         <template shadowrootmode="open">
-          {{ initial_renders[widget.id] | safe }}
+          {{ wr.Html|safe }}
         </template>
         {% endif %}
       </shelby-widget>
@@ -89,7 +89,7 @@
 
   <script src="/static/runtime.js"></script>
   <script>
-    ShelbyViz.init({ refresh: {{ dashboard.refresh }} });
+    ShelbyViz.init({ refresh: {{ dashboard.Refresh }} });
   </script>
   {% if live_reload %}
   <script>

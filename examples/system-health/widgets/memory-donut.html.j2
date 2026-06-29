@@ -1,0 +1,50 @@
+{# Custom widget: memory-donut.html.j2 — pongo2 compatible #}
+{%- set used_bytes  = data.used.Last|default:0|float -%}
+{%- set total_bytes = data.total.Last|default:1|float -%}
+{%- if total_bytes <= 0 -%}{%- set total_bytes = 1.0 -%}{%- endif -%}
+{%- set gb      = 1073741824.0 -%}
+{%- set used_gb = used_bytes / gb -%}
+{%- set total_gb_f = total_bytes / gb -%}
+{%- set pct     = used_bytes / total_bytes * 100 -%}
+{%- if pct < 0 -%}{%- set pct = 0 -%}{%- endif -%}
+{%- if pct > 100 -%}{%- set pct = 100 -%}{%- endif -%}
+{%- set color = "#4caf50" -%}
+{%- if pct >= 85 -%}{%- set color = "#f44336" -%}
+{%- elif pct >= 60 -%}{%- set color = "#ff9800" -%}
+{%- endif -%}
+{%- set circ    = 188.4 -%}
+{%- set dash    = pct / 100 * circ -%}
+{%- set trend_bytes = data.used.Trend|default:0|float -%}
+{%- set trend_gb = trend_bytes / gb -%}
+<style>
+  :host { display: flex; align-items: center; justify-content: center; height: 100%; }
+  .wrap  { display: flex; align-items: center; gap: 16px; padding: 12px; }
+  .info  { display: flex; flex-direction: column; gap: 4px; }
+  .used  { font-size: 1.5rem; font-weight: 700; color: {{ color }}; line-height: 1; }
+  .label { font-size: .72rem; color: #666; }
+  .sub   { font-size: .78rem; color: #555; }
+  .trend { font-size: .72rem; color: #444; margin-top: 4px; }
+</style>
+<div class="wrap">
+  <svg width="88" height="88" viewBox="0 0 88 88">
+    <circle cx="44" cy="44" r="30" fill="none" stroke="#1e1e3a" stroke-width="12"/>
+    <circle cx="44" cy="44" r="30" fill="none"
+            stroke="{{ color }}"
+            stroke-width="12"
+            stroke-dasharray="{{ dash|floatformat:1 }} {{ circ }}"
+            stroke-linecap="round"
+            transform="rotate(-90 44 44)"
+            style="transition: stroke-dasharray .4s ease"/>
+    <text x="44" y="48" text-anchor="middle"
+          fill="{{ color }}" font-size="13" font-weight="700">{{ pct|floatformat:0 }}%</text>
+  </svg>
+  <div class="info">
+    <div class="used">{{ used_gb|floatformat:1 }} GB</div>
+    <div class="label">{{ meta.title }}</div>
+    <div class="sub">of {{ total_gb_f|floatformat:0 }} GB total</div>
+    <div class="trend">
+      trend {% if trend_gb > 0 %}↑{% elif trend_gb < 0 %}↓{% else %}→{% endif %}
+      {{ trend_gb|abs|floatformat:2 }} GB
+    </div>
+  </div>
+</div>

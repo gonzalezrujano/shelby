@@ -1,0 +1,9 @@
+name: Test Shelby
+interval: 10s
+steps:
+ - id: hello
+   type: shell
+   command: echo Hello world!!
+
+output:
+ title: ${steps.hello.output.stdout}

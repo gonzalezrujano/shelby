@@ -1,0 +1,7 @@
+# Mock data for: shelby viz sandbox ./test-dashboard
+# Each field is a list of values (oldest → newest).
+# Timestamps are generated automatically.
+
+pipelines:
+  test-dashboard:
+    my.field: [10, 20, 30, 40, 50]

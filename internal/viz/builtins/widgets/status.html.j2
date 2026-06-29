@@ -1,18 +1,20 @@
 {%- set series = data.status -%}
-{#  Determine status string from the series:
-    - If last value is 1 / truthy → ok
-    - If last value is 0          → error
-    - Override via config.ok_above threshold                             #}
-{%- set raw = series.last | default(0) | float -%}
-{%- if config.ok_above is defined -%}
-  {%- set status = 'ok' if raw >= config.ok_above | float else 'warning' -%}
-{%- elif config.error_above is defined -%}
-  {%- set status = 'error' if raw >= config.error_above | float else 'ok' -%}
+{%- set raw = series.Last|default:0|float -%}
+{%- set status = "error" -%}
+{%- if config.ok_above -%}
+  {%- set status = "warning" -%}
+  {%- if raw >= config.ok_above|float -%}{%- set status = "ok" -%}{%- endif -%}
+{%- elif config.error_above -%}
+  {%- set status = "ok" -%}
+  {%- if raw >= config.error_above|float -%}{%- set status = "error" -%}{%- endif -%}
 {%- else -%}
-  {%- set status = 'ok' if raw else 'error' -%}
+  {%- if raw -%}{%- set status = "ok" -%}{%- endif -%}
 {%- endif -%}
-{%- set colors = {'ok': '#4caf50', 'warning': '#ff9800', 'error': '#f44336', 'unknown': '#555'} -%}
-{%- set color = colors.get(status, '#555') -%}
+{%- set color = "#555" -%}
+{%- if status == "ok" -%}{%- set color = "#4caf50" -%}
+{%- elif status == "warning" -%}{%- set color = "#ff9800" -%}
+{%- elif status == "error" -%}{%- set color = "#f44336" -%}
+{%- endif -%}
 <style>
   :host { display: flex; align-items: center; justify-content: center; height: 100%; }
   .wrap  { display: flex; align-items: center; gap: 10px; }
