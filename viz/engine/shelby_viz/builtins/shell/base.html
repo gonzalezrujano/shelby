@@ -39,6 +39,19 @@
       border-radius: 8px;
       overflow: hidden;
       position: relative;
+      grid-column: var(--sc) / span var(--sw);
+      grid-row:    var(--sr) / span var(--sh);
+    }
+
+    @media (max-width: 768px) {
+      .shelby-grid {
+        grid-template-columns: 1fr;
+      }
+      .shelby-cell {
+        grid-column: 1 / -1;
+        grid-row: auto;
+        min-height: 140px;
+      }
     }
 
     shelby-widget {
@@ -60,7 +73,7 @@
   <div class="shelby-grid">
     {% for widget in dashboard.widgets %}
     <div class="shelby-cell"
-         style="grid-column: {{ widget.col }} / span {{ widget.width }}; grid-row: {{ widget.row }} / span {{ widget.height }};">
+         style="--sc:{{ widget.col }};--sw:{{ widget.width }};--sr:{{ widget.row }};--sh:{{ widget.height }};">
       <shelby-widget
         data-widget-id="{{ widget.id }}"
         data-refresh="{{ dashboard.refresh }}">
