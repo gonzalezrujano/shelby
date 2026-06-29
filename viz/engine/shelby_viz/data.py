@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 import requests
 
@@ -99,3 +100,40 @@ class PipelinesContext:
     # Allow pipelines('slug') call syntax as well
     def __call__(self, slug: str) -> PipelineProxy:
         return PipelineProxy(slug, self._base)
+
+
+class MockPipelineProxy:
+    """Backed by static lists of values from sandbox.yml instead of HTTP calls."""
+
+    def __init__(self, slug: str, fields: dict[str, list]) -> None:
+        self.slug = slug
+        self._fields = fields
+
+    def series(self, field: str, limit: int = 50, unit: str = "") -> SeriesData:
+        raw = self._fields.get(field, [])[-limit:]
+        now = datetime.now(timezone.utc)
+        points = [
+            {
+                "t": (now - timedelta(minutes=len(raw) - i - 1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "v": float(v),
+                "run_id": f"mock-{i:04d}",
+            }
+            for i, v in enumerate(raw)
+        ]
+        return SeriesData(kind="timeseries", unit=unit, points=points, meta={"mock": True})
+
+    def runs(self, limit: int = 20) -> dict:
+        return {"runs": [], "mock": True}
+
+
+class MockPipelinesContext:
+    """Drop-in replacement for PipelinesContext backed by sandbox.yml data."""
+
+    def __init__(self, data: dict[str, dict[str, list]]) -> None:
+        self._data = data  # {"slug": {"field.path": [v1, v2, ...]}}
+
+    def __getitem__(self, slug: str) -> MockPipelineProxy:
+        return MockPipelineProxy(slug, self._data.get(slug, {}))
+
+    def __call__(self, slug: str) -> MockPipelineProxy:
+        return MockPipelineProxy(slug, self._data.get(slug, {}))

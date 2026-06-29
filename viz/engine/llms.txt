@@ -8,9 +8,10 @@ shelby-viz is a Python/Jinja2 dashboard renderer that pulls live data from a run
 pip install -e .          # from this directory
 # or: pip install shelby-viz
 
-shelby-viz serve  <dashboard-dir> [--shelby http://localhost:8080] [--port 5000] [--debug]
-shelby-viz build  <dashboard-dir> [--shelby http://localhost:8080] [--out dist/]
-shelby-viz init   <name>          [--out .]
+shelby-viz serve    <dashboard-dir> [--shelby http://localhost:8080] [--port 5000] [--debug]
+shelby-viz sandbox  <dashboard-dir> [--port 5000] [--debug]   # no Shelby server needed
+shelby-viz build    <dashboard-dir> [--shelby http://localhost:8080] [--out dist/]
+shelby-viz init     <name>          [--out .]
 shelby-viz validate <dashboard-dir>
 ```
 
@@ -19,6 +20,7 @@ shelby-viz validate <dashboard-dir>
 ```
 my-dashboard/
   dashboard.yml          ← required: widget grid definition
+  sandbox.yml            ← optional: mock data for shelby-viz sandbox
   widgets/               ← optional: custom Jinja2 templates (.html.j2)
   assets/                ← optional: CSS/JS referenced by custom widgets
   vars/                  ← optional: environment-specific variable overrides
@@ -361,6 +363,32 @@ binding:
 ```jinja2
 {%- set pct = (data.used.last / data.total.last * 100) | round(0) | int -%}
 ```
+
+## Sandbox (widget testing without a Shelby server)
+
+Define mock data in `sandbox.yml` at the dashboard project root, then run `shelby-viz sandbox`. The renderer substitutes the real Shelby HTTP calls with the static values — all template variables (`data.*`, `config.*`, `meta.*`) work identically.
+
+```yaml
+# sandbox.yml
+pipelines:
+  my-pipeline:                    # must match the `pipeline:` slug in dashboard.yml bindings
+    cpu.percent: [30, 45, 52, 48, 61, 55, 70]   # oldest → newest
+    memory.used: [8589934592, 8700000000]
+    memory.total: [17179869184]
+    disk.percentage_used: [62.3, 62.5, 63.1]
+```
+
+- Values are floats (or ints). Timestamps are auto-generated, one minute apart.
+- If a binding references a field not present in `sandbox.yml`, it returns empty `SeriesData` (`.last = 0`, `.points = []`).
+- `runs:` bindings return `{"runs": [], "mock": true}`.
+- Missing `sandbox.yml` is not an error — all widgets render with empty data.
+
+```bash
+shelby-viz sandbox my-dashboard/
+# → http://localhost:5000  (auto-refreshes from mock data, no Shelby needed)
+```
+
+`shelby-viz init` generates a starter `sandbox.yml` alongside `dashboard.yml`.
 
 ## Validation
 

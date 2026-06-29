@@ -5,7 +5,7 @@ from typing import Any
 
 import jinja2
 
-from .data import PipelinesContext, SeriesData
+from .data import PipelinesContext, MockPipelinesContext, SeriesData
 from .loader import DashboardDef, WidgetDef
 
 BUILTINS_DIR = Path(__file__).parent / "builtins"
@@ -71,9 +71,15 @@ def _filesizeformat(value: float, binary: bool = False) -> str:
 class Renderer:
     """Resolves bindings from the Shelby API and renders Jinja2 widget templates."""
 
-    def __init__(self, dashboard_path: Path, shelby_url: str) -> None:
+    def __init__(
+        self,
+        dashboard_path: Path,
+        shelby_url: str,
+        pipelines: PipelinesContext | MockPipelinesContext | None = None,
+    ) -> None:
         self.dashboard_path = Path(dashboard_path).resolve()
         self.shelby_url = shelby_url
+        self._pipelines = pipelines
         self._env = self._build_env()
 
     def _build_env(self) -> jinja2.Environment:
@@ -94,7 +100,7 @@ class Renderer:
 
     def render_widget(self, widget: WidgetDef) -> str:
         """Fetch live data and render one widget to an HTML string."""
-        pipelines = PipelinesContext(self.shelby_url)
+        pipelines = self._pipelines if self._pipelines is not None else PipelinesContext(self.shelby_url)
 
         data: dict[str, Any] = {}
         for key, binding_cfg in widget.binding.items():

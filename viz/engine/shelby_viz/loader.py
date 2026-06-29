@@ -67,6 +67,17 @@ def load_dashboard(path: str | Path) -> DashboardDef:
     )
 
 
+def load_sandbox(path: str | Path) -> dict[str, dict[str, list]]:
+    """Load sandbox.yml mock data. Returns {slug: {field: [values]}}."""
+    path = Path(path)
+    if path.is_dir():
+        path = path / "sandbox.yml"
+    if not path.exists():
+        return {}
+    raw = yaml.safe_load(path.read_text()) or {}
+    return raw.get("pipelines", {})
+
+
 def _parse_duration(s: str | int) -> int:
     s = str(s).strip()
     if s.endswith("s"):

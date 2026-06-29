@@ -73,10 +73,34 @@ def init(name: str, out: str) -> None:
         "widgets: []\n"
     )
     (target / "README.md").write_text(f"# {name}\n\nA shelby-viz dashboard.\n")
+    (target / "sandbox.yml").write_text(
+        "# Mock data for: shelby-viz sandbox " + str(target) + "\n"
+        "# Each field is a list of values (oldest → newest).\n"
+        "# Timestamps are generated automatically.\n\n"
+        "pipelines:\n"
+        f"  {name}:\n"
+        "    my.field: [10, 20, 30, 40, 50]\n"
+    )
 
     click.echo(f"  created {target}/")
     click.echo(f"  → edit dashboard.yml to add widgets")
+    click.echo(f"  → edit sandbox.yml to add mock data")
+    click.echo(f"  → shelby-viz sandbox {target}   (no Shelby server needed)")
     click.echo(f"  → shelby-viz serve {target} --shelby http://localhost:8080")
+
+
+@cli.command()
+@click.argument("dashboard", type=click.Path(exists=True))
+@click.option("--port", default=5000, show_default=True, help="Port to serve on")
+@click.option("--debug", is_flag=True, help="Enable Flask debug mode + auto-reload")
+def sandbox(dashboard: str, port: int, debug: bool) -> None:
+    """Serve a dashboard with mock data from sandbox.yml — no Shelby server needed."""
+    from .server import serve_sandbox
+
+    click.echo(f"  shelby-viz · sandbox {dashboard}")
+    click.echo(f"  mock data  → {dashboard}/sandbox.yml")
+    click.echo(f"  open       → http://localhost:{port}")
+    serve_sandbox(dashboard, port, debug)
 
 
 @cli.command()
