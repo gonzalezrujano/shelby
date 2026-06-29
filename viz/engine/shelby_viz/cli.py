@@ -17,14 +17,17 @@ def cli() -> None:
 @click.option("--shelby", default="http://localhost:8080", show_default=True, help="Shelby server URL")
 @click.option("--port", default=5000, show_default=True, help="Port to serve on")
 @click.option("--debug", is_flag=True, help="Enable Flask debug mode + auto-reload")
-def serve(dashboard: str, shelby: str, port: int, debug: bool) -> None:
+@click.option("--watch", is_flag=True, help="Reload browser on template/config changes (live reload)")
+def serve(dashboard: str, shelby: str, port: int, debug: bool, watch: bool) -> None:
     """Start a live dashboard server backed by a running Shelby instance."""
     from .server import serve as _serve
 
     click.echo(f"  shelby-viz · serving {dashboard}")
     click.echo(f"  shelby API → {shelby}")
     click.echo(f"  open       → http://localhost:{port}")
-    _serve(dashboard, shelby, port, debug)
+    if watch:
+        click.echo(f"  live reload → watching {dashboard}")
+    _serve(dashboard, shelby, port, debug, live_reload=watch)
 
 
 @cli.command()
@@ -93,14 +96,17 @@ def init(name: str, out: str) -> None:
 @click.argument("dashboard", type=click.Path(exists=True))
 @click.option("--port", default=5000, show_default=True, help="Port to serve on")
 @click.option("--debug", is_flag=True, help="Enable Flask debug mode + auto-reload")
-def sandbox(dashboard: str, port: int, debug: bool) -> None:
+@click.option("--watch", is_flag=True, help="Reload browser on template/config changes (live reload)")
+def sandbox(dashboard: str, port: int, debug: bool, watch: bool) -> None:
     """Serve a dashboard with mock data from sandbox.yml — no Shelby server needed."""
     from .server import serve_sandbox
 
     click.echo(f"  shelby-viz · sandbox {dashboard}")
     click.echo(f"  mock data  → {dashboard}/sandbox.yml")
     click.echo(f"  open       → http://localhost:{port}")
-    serve_sandbox(dashboard, port, debug)
+    if watch:
+        click.echo(f"  live reload → watching {dashboard}")
+    serve_sandbox(dashboard, port, debug, live_reload=watch)
 
 
 @cli.command()

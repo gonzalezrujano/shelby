@@ -14,10 +14,8 @@ dependencies = [
     "pyyaml>=6.0",
     "requests>=2.31",
     "flask>=3.0",
+    "watchdog>=4.0",
 ]
-
-[project.optional-dependencies]
-dev = ["watchdog>=4.0"]
 
 [project.scripts]
 shelby-viz = "shelby_viz.cli:cli"

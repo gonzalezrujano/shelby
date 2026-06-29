@@ -91,5 +91,14 @@
   <script>
     ShelbyViz.init({ refresh: {{ dashboard.refresh }} });
   </script>
+  {% if live_reload %}
+  <script>
+    (function () {
+      var es = new EventSource('/api/livereload');
+      es.onmessage = function (e) { if (e.data === 'reload') location.reload(); };
+      es.onerror   = function ()  { es.close(); setTimeout(function () { location.reload(); }, 500); };
+    })();
+  </script>
+  {% endif %}
 </body>
 </html>

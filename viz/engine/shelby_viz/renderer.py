@@ -118,7 +118,7 @@ class Renderer:
             meta={"title": widget.title, "id": widget.id},
         )
 
-    def render_dashboard(self, dashboard: DashboardDef) -> str:
+    def render_dashboard(self, dashboard: DashboardDef, live_reload: bool = False) -> str:
         """Render the full dashboard page with all widgets inlined."""
         initial: dict[str, str] = {}
         for widget in dashboard.widgets:
@@ -136,4 +136,5 @@ class Renderer:
             dashboard=dashboard,
             initial_renders=initial,
             shelby_url=self.shelby_url,
+            live_reload=live_reload,
         )
