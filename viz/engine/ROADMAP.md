@@ -5,3 +5,4 @@ Próximos pasos naturales
 - shelby-viz init --from-pipeline my-slug — scaffold automático que lee el output de un pipeline y propone widgets
 - Live reload con watchdog — detectar cambios en .html.j2 y recargar sin reiniciar el server
 - Sandbox de widgets para testing
+- Seria genial cargar el pipeline y el dashboard desde una sola carpeta

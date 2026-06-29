@@ -4,25 +4,30 @@ Example shelby-viz dashboard that visualises the `system-health` Shelby pipeline
 
 ## Prerequisites
 
-1. A running Shelby instance with the `system-health` pipeline registered and at least a few runs recorded:
+1. Register the pipeline and collect some history (run from repo root):
 
    ```bash
-   shelby register system_health.yml
-   shelby run system-health
-   shelby serve          # starts API on :8080
+   shelby add viz/examples/system-health/pipeline.yml
+
+   # Run a handful of times to build history
+   for i in $(seq 1 10); do shelby run system-health; sleep 2; done
+
+   # Start the Shelby API (keeps running + schedules pipeline every 15s)
+   shelby serve
    ```
 
-2. `shelby-viz` installed:
+2. Install `shelby-viz`:
 
    ```bash
    cd viz/engine
-   pip install -e .
+   python3 -m venv .venv && .venv/bin/pip install -e .
    ```
 
 ## Run
 
 ```bash
-shelby-viz serve viz/examples/system-health --shelby http://localhost:8080
+# From viz/engine/
+.venv/bin/shelby-viz serve ../examples/system-health --shelby http://localhost:8080
 # open http://localhost:5000
 ```
 

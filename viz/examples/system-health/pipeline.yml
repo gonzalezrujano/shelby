@@ -1,0 +1,43 @@
+name: system-health
+description: CPU, memory, disk, and host metrics for the shelby-viz dashboard example
+interval: 15s
+
+steps:
+  # Step IDs become the top-level keys in the auto-captured output,
+  # so field paths like "cpu.percent", "memory.used", "disk.percentage_used"
+  # are queryable directly from the /api/pipelines/system-health/series endpoint.
+
+  - id: cpu
+    type: sys_stat
+    source: cpu
+    # output keys: percent, load1, load5, load15
+
+  - id: memory
+    type: sys_stat
+    source: memory
+    # output keys: percent, used (bytes), free (bytes), available (bytes), total (bytes)
+
+  - id: disk
+    type: sys_stat
+    source: /
+    # output keys: path, percentage_used, used (bytes), free (bytes), total (bytes)
+
+  - id: host
+    type: sys_stat
+    source: host
+    # output keys: hostname, os, platform, platform_version, uptime, procs
+
+# No explicit output: section → auto-capture mode.
+# Shelby stores the full data from every step under its step ID:
+#
+#   {
+#     "cpu":    { "percent": 42.1, "load1": 1.2, "load5": 0.9, "load15": 0.7 },
+#     "memory": { "percent": 74.3, "used": 11953807360, "total": 17179869184, ... },
+#     "disk":   { "percentage_used": 61.2, "used": 198723715072, ... },
+#     "host":   { "hostname": "macbook", "uptime": 86400, "procs": 412, ... }
+#   }
+#
+# Dashboard series bindings map directly to these dotted paths, e.g.:
+#   field=cpu.percent          → 42.1
+#   field=memory.used          → 11953807360  (bytes; widget converts to GB)
+#   field=disk.percentage_used → 61.2

@@ -1,6 +1,6 @@
 name: System Health
-description: CPU, memory and network via the system-health pipeline
-refresh: 30s
+description: CPU, memory, disk and host metrics via the system-health pipeline
+refresh: 10s
 
 layout:
   columns: 12
@@ -9,10 +9,10 @@ vars:
   shelby_url: http://localhost:8080
 
 widgets:
-  # ── Row 1: CPU overview ───────────────────────────────────────────────────
+  # ── Row 1: CPU ────────────────────────────────────────────────────────────
 
   - id: cpu-gauge
-    title: CPU Now
+    title: CPU Usage
     type: gauge
     col: 1
     row: 1
@@ -44,9 +44,9 @@ widgets:
       unit: "%"
       color: "#00d4aa"
 
-  # ── Row 2: Memory (built-in counter + custom donut) ───────────────────────
+  # ── Row 2: Memory ─────────────────────────────────────────────────────────
 
-  - id: mem-counter
+  - id: mem-percent
     title: Memory Used
     type: counter
     col: 1
@@ -54,12 +54,13 @@ widgets:
     width: 3
     height: 3
     binding:
+      # memory.percent is 0-100, comes directly from sys_stat
       value:
         pipeline: system-health
-        series: memory.used_gb
+        series: memory.percent
         limit: 2
     config:
-      unit: " GB"
+      unit: "%"
 
   - id: mem-donut
     title: Memory Breakdown
@@ -70,39 +71,61 @@ widgets:
     width: 4
     height: 3
     binding:
+      # used and total arrive as bytes; the template converts to GB
       used:
         pipeline: system-health
-        series: memory.used_gb
+        series: memory.used
+        limit: 2
+      total:
+        pipeline: system-health
+        series: memory.total
+        limit: 2
+
+  # ── Row 2: Disk + Status ──────────────────────────────────────────────────
+
+  - id: disk-gauge
+    title: Disk /
+    type: gauge
+    col: 8
+    row: 4
+    width: 3
+    height: 3
+    binding:
+      value:
+        pipeline: system-health
+        series: disk.percentage_used
         limit: 2
     config:
-      total: 16        # total GB — adjust to your machine
-      unit: GB
-
-  # ── Row 2: Pipeline status ────────────────────────────────────────────────
+      min: 0
+      max: 100
+      unit: "%"
+      # Disk is an error above 85%, warning above 60%
+      error_above: 85
 
   - id: pipeline-ok
     title: Pipeline Status
     type: status
-    col: 8
+    col: 11
     row: 4
     width: 2
     height: 3
     binding:
+      # Any CPU reading above 0 means the pipeline ran successfully
       status:
         pipeline: system-health
         series: cpu.percent
         limit: 1
     config:
-      ok_above: 0.1    # any CPU reading > 0.1 means the pipeline ran
+      ok_above: 0.1
 
   # ── Row 3: Recent run log ─────────────────────────────────────────────────
 
   - id: run-log
     title: Recent CPU Readings
     type: table
-    col: 10
-    row: 4
-    width: 3
+    col: 1
+    row: 7
+    width: 12
     height: 3
     binding:
       rows:
