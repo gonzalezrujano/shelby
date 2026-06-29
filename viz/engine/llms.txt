@@ -1,0 +1,418 @@
+# shelby-viz: Dashboard Engine for Shelby Pipelines
+
+shelby-viz is a Python/Jinja2 dashboard renderer that pulls live data from a running Shelby Go server and displays it as an auto-refreshing HTML grid of widgets. It has no database—it reads directly from the Shelby HTTP API at render time.
+
+## Installation & CLI
+
+```bash
+pip install -e .          # from this directory
+# or: pip install shelby-viz
+
+shelby-viz serve  <dashboard-dir> [--shelby http://localhost:8080] [--port 5000] [--debug]
+shelby-viz build  <dashboard-dir> [--shelby http://localhost:8080] [--out dist/]
+shelby-viz init   <name>          [--out .]
+shelby-viz validate <dashboard-dir>
+```
+
+## Dashboard project layout
+
+```
+my-dashboard/
+  dashboard.yml          ← required: widget grid definition
+  widgets/               ← optional: custom Jinja2 templates (.html.j2)
+  assets/                ← optional: CSS/JS referenced by custom widgets
+  vars/                  ← optional: environment-specific variable overrides
+```
+
+## dashboard.yml — full reference
+
+```yaml
+name: My Dashboard          # required
+description: Optional text  # optional
+refresh: 30s                # polling interval — Ns | Nm | Nh  (default: 60s)
+
+layout:
+  columns: 12               # CSS grid column count (default: 12)
+
+vars:                       # available in templates as {{ vars.key }}
+  shelby_url: http://localhost:8080
+  my_threshold: 90
+
+widgets:
+  - id: cpu                 # unique string within the dashboard
+    title: CPU Usage        # displayed in widget header
+    type: gauge             # gauge | timeseries | counter | table | status | custom
+    col: 1                  # grid column start (1-based)
+    row: 1                  # grid row start (1-based)
+    width: 4                # columns to span
+    height: 2               # rows to span
+
+    binding:                # keys here become data.<key> inside the template
+      value:                # ← binding key name (any string you choose)
+        pipeline: my-slug   # Shelby pipeline slug
+        series: cpu.percent # dotted field path in the pipeline output
+        limit: 2            # last N runs (default: 50)
+        unit: "%"           # optional unit hint forwarded to the API
+
+    config:                 # free-form dict forwarded verbatim as config.* in templates
+      min: 0
+      max: 100
+      unit: "%"
+```
+
+## Binding shapes
+
+All bindings live under the `binding:` key. Each binding key (`value:`, `series:`, `rows:`, `status:`, etc.) can use one of four shapes:
+
+### 1. Series binding (most common)
+```yaml
+binding:
+  value:
+    pipeline: my-pipeline
+    series: some.field
+    limit: 50      # optional, default 50
+    unit: ms       # optional
+```
+Returns a `SeriesData` object. Access via `data.value.*` in templates.
+
+### 2. Runs binding
+```yaml
+binding:
+  runs:
+    pipeline: my-pipeline
+    runs: 20       # limit
+```
+Returns the raw JSON dict from `/api/pipelines/:slug/runs`.
+
+### 3. Static binding
+```yaml
+binding:
+  threshold:
+    value: 42
+```
+Returns the literal value.
+
+### 4. Expression binding (advanced)
+```yaml
+binding:
+  computed: "{{ pipelines['my-slug'].series('field.path') }}"
+```
+The string is evaluated as a Python expression with `pipelines` in scope.
+
+## SeriesData API (available in widget templates as `data.<key>`)
+
+```
+data.key            → SeriesData object
+data.key.last       → float  — most recent value
+data.key.previous   → float  — second-most-recent value
+data.key.trend      → float  — last - previous
+data.key.max        → float
+data.key.min        → float
+data.key.avg        → float
+data.key.points     → list of {t: str, v: float, run_id: str}
+data.key.unit       → str
+data.key.kind       → str  ("timeseries")
+len(data.key)       → int  — number of points
+bool(data.key)      → False when empty
+```
+
+## Built-in widget types
+
+| type | required binding key | required config | notes |
+|------|---------------------|-----------------|-------|
+| `gauge` | `value` (SeriesData) | `min`, `max`, `unit` | semicircle arc, color shifts green→red |
+| `timeseries` | `series` (SeriesData) | `unit`, `color` (opt) | bar chart, shows avg/max in footer |
+| `counter` | `value` (SeriesData) | `unit` | large number + trend arrow |
+| `table` | `rows` (SeriesData) | `unit` (opt) | scrollable table of last 20 points |
+| `status` | `status` (SeriesData) | `ok_above` or `error_above` (opt) | colored dot — ok / warning / error |
+
+### gauge config options
+```yaml
+config:
+  min: 0
+  max: 100
+  unit: "%"
+  error_above: 85    # optional — value >= this renders red
+```
+
+### status config options
+```yaml
+config:
+  ok_above: 0.1      # value >= threshold → ok, else warning
+  # OR
+  error_above: 85    # value >= threshold → error, else ok
+  # (if neither is set: truthy value → ok, falsy → error)
+```
+
+## Custom widgets
+
+Set `type: custom` and provide a `template:` path (relative to the dashboard project root):
+
+```yaml
+- id: my-widget
+  type: custom
+  template: widgets/my-widget.html.j2
+  col: 1
+  row: 1
+  width: 6
+  height: 3
+  binding:
+    used:
+      pipeline: my-pipeline
+      series: memory.used
+      limit: 2
+    total:
+      pipeline: my-pipeline
+      series: memory.total
+      limit: 2
+  config:
+    show_trend: true
+```
+
+Inside the template, three variables are available:
+
+```jinja2
+{{ data }}        {# dict of resolved bindings — data.used, data.total, etc. #}
+{{ config }}      {# free-form dict from dashboard.yml config: block #}
+{{ meta.title }}  {# widget title string #}
+{{ meta.id }}     {# widget id string #}
+```
+
+Widgets render inside Shadow DOM cells — your CSS is fully isolated.
+
+### Custom widget skeleton
+```jinja2
+{%- set val = data.mykey.last | default(0) | float -%}
+<style>
+  :host { display: flex; align-items: center; justify-content: center; height: 100%; }
+  .value { font-size: 2rem; font-weight: 700; color: #e0e0ff; }
+</style>
+<div class="value">{{ val | round(1) }} {{ config.unit | default('') }}</div>
+```
+
+## Jinja2 filters added by shelby-viz
+
+| filter | signature | example |
+|--------|-----------|---------|
+| `filesizeformat` | `(value, binary=False)` | `{{ bytes \| filesizeformat }}` → `"1.4 GB"` |
+| `ratio` | `(value, total)` | `{{ used \| ratio(total) }}` → `0.73` |
+| `abs` | `(value)` | `{{ trend \| abs }}` |
+
+Standard Jinja2 filters (`round`, `default`, `float`, `int`, `min`, `max`, `list`, `reverse`, etc.) are also available.
+
+## Architecture
+
+```
+Shelby Go binary  →  HTTP API
+  GET /api/pipelines/:slug/series?field=&limit=&unit=
+  GET /api/pipelines/:slug/runs?limit=
+         │
+         ▼
+shelby-viz (Python)
+  loader.py   — parses dashboard.yml → DashboardDef / WidgetDef dataclasses
+  data.py     — PipelinesContext, PipelineProxy, SeriesData
+  renderer.py — resolves bindings + renders .html.j2 via Jinja2
+  server.py   — Flask dev server with /api/widget/:id polling endpoint
+  cli.py      — Click CLI (serve / build / init / validate)
+         │
+         ▼
+Browser
+  CSS Grid host  (base.html shell)
+  Shadow DOM per widget cell
+  runtime.js  — polls /api/widget/:id every <refresh>s, swaps shadow root
+```
+
+## Worked example: system-health dashboard
+
+This example connects to a `system-health` Shelby pipeline that emits `cpu.percent`, `memory.used`, `memory.total`, and `disk.percentage_used`.
+
+```yaml
+name: System Health
+description: CPU, memory, disk and host metrics
+refresh: 10s
+
+layout:
+  columns: 12
+
+vars:
+  shelby_url: http://localhost:8080
+
+widgets:
+  - id: cpu-gauge
+    title: CPU Usage
+    type: gauge
+    col: 1
+    row: 1
+    width: 3
+    height: 3
+    binding:
+      value:
+        pipeline: system-health
+        series: cpu.percent
+        limit: 2
+    config:
+      min: 0
+      max: 100
+      unit: "%"
+
+  - id: cpu-history
+    title: CPU History
+    type: timeseries
+    col: 4
+    row: 1
+    width: 9
+    height: 3
+    binding:
+      series:
+        pipeline: system-health
+        series: cpu.percent
+        limit: 60
+    config:
+      unit: "%"
+      color: "#00d4aa"
+
+  - id: mem-donut
+    title: Memory Breakdown
+    type: custom
+    template: widgets/memory-donut.html.j2
+    col: 4
+    row: 4
+    width: 4
+    height: 3
+    binding:
+      used:
+        pipeline: system-health
+        series: memory.used
+        limit: 2
+      total:
+        pipeline: system-health
+        series: memory.total
+        limit: 2
+
+  - id: pipeline-ok
+    title: Pipeline Status
+    type: status
+    col: 11
+    row: 4
+    width: 2
+    height: 3
+    binding:
+      status:
+        pipeline: system-health
+        series: cpu.percent
+        limit: 1
+    config:
+      ok_above: 0.1
+
+  - id: run-log
+    title: Recent CPU Readings
+    type: table
+    col: 1
+    row: 7
+    width: 12
+    height: 3
+    binding:
+      rows:
+        pipeline: system-health
+        series: cpu.percent
+        limit: 20
+```
+
+## Common patterns
+
+**Show bytes as human-readable size:**
+```jinja2
+{%- set bytes = data.used.last | default(0) | float -%}
+{{ bytes | filesizeformat(binary=True) }}
+```
+
+**Threshold-based color:**
+```jinja2
+{%- set val = data.value.last | float -%}
+{%- set color = '#4caf50' if val < 60 else ('#ff9800' if val < 85 else '#f44336') -%}
+```
+
+**Trend arrow:**
+```jinja2
+{%- set trend = data.value.trend | float -%}
+{% if trend > 0 %}↑{% elif trend < 0 %}↓{% else %}→{% endif %}
+{{ trend | abs | round(2) }}
+```
+
+**Iterate over all data points:**
+```jinja2
+{% for p in data.series.points %}
+  <div>{{ p.t }} — {{ p.v | round(2) }}</div>
+{% endfor %}
+```
+
+**Multiple bindings in one widget:**
+```yaml
+binding:
+  used:
+    pipeline: my-pipeline
+    series: memory.used
+    limit: 2
+  total:
+    pipeline: my-pipeline
+    series: memory.total
+    limit: 2
+```
+```jinja2
+{%- set pct = (data.used.last / data.total.last * 100) | round(0) | int -%}
+```
+
+## Validation
+
+```bash
+shelby-viz validate my-dashboard/
+# ✓ dashboard.yml — 6 widget(s)
+# ✓ cpu-gauge (gauge) → widgets/gauge.html.j2
+# ✓ mem-donut (custom) → widgets/memory-donut.html.j2
+```
+
+Validation checks: YAML parses, all referenced templates exist. It does not require a live Shelby server.
+
+## Grid positioning rules
+
+- The grid has `layout.columns` columns (default 12).
+- `col` is 1-based; `col + width - 1` must be ≤ `columns`.
+- `row` is 1-based; rows expand automatically — no declared row limit.
+- Widgets can overlap if you intend layering; shelby-viz does not enforce non-overlap.
+
+## Mobile / responsive behaviour
+
+No extra configuration is required. Below 768 px the renderer automatically:
+- Collapses the grid to a single full-width column.
+- Stacks widgets in DOM order (row-first, top-to-bottom as declared in `dashboard.yml`).
+- Sets a `min-height: 140px` per cell so short widgets don't collapse.
+
+The positioning is implemented with CSS custom properties (`--sc`, `--sw`, `--sr`, `--sh`) so the `@media` block can override layout without fighting inline styles.
+
+If the stacking order on mobile is wrong, reorder the `widgets:` list in `dashboard.yml` — desktop layout is driven by `col`/`row`, mobile order is DOM order.
+
+## Dataclass reference (Python)
+
+```python
+@dataclass
+class WidgetDef:
+    id: str
+    title: str
+    type: str           # gauge | timeseries | counter | table | status | custom
+    col: int
+    row: int
+    width: int
+    height: int
+    binding: dict       # raw binding config from YAML
+    config: dict        # raw config from YAML
+    template: str|None  # required when type == "custom"
+
+@dataclass
+class DashboardDef:
+    name: str
+    description: str
+    refresh: int        # seconds (after parsing Ns/Nm/Nh)
+    columns: int
+    widgets: list[WidgetDef]
+    vars: dict
+```
