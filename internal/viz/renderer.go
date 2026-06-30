@@ -15,6 +15,11 @@ import (
 //go:embed builtins
 var builtinsFS embed.FS
 
+// LLMsText returns the contents of the embedded llms.txt file.
+func LLMsText() ([]byte, error) {
+	return builtinsFS.ReadFile("builtins/llms.txt")
+}
+
 // WidgetRender pairs a widget definition with its rendered HTML.
 // Fields use names that pongo2 can resolve via strings.Title lookup:
 //   - wr.widget  → Widget *WidgetDef

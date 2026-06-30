@@ -130,6 +130,9 @@ func cmdVizInit(args []string) int {
 		return 1
 	}
 	name := fs.Arg(0)
+	if fs.NArg() > 1 {
+		_ = fs.Parse(fs.Args()[1:])
+	}
 	target := filepath.Join(*out, name)
 
 	if _, err := os.Stat(target); err == nil {
@@ -160,6 +163,10 @@ func cmdVizInit(args []string) int {
 	if err := os.WriteFile(filepath.Join(target, "README.md"), []byte(readme), 0o644); err != nil {
 		fmt.Fprintln(os.Stderr, "viz init:", err)
 		return 1
+	}
+
+	if llms, err := viz.LLMsText(); err == nil {
+		_ = os.WriteFile(filepath.Join(target, "llms.txt"), llms, 0o644)
 	}
 
 	fmt.Printf("  created %s/\n", target)
