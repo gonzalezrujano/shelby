@@ -67,6 +67,49 @@ output:                          # final pipeline output map (recorded in run hi
 - `${env.VAR}`: Expand to system environment variables (missing maps to empty strings).
 - Type matching: A full-string reference preserves type while interpolated refs convert back to strings.
 
+## Environment Variables
+
+Use `${env.VAR_NAME}` anywhere in a step's text fields — `source`, `headers`, `command`, `input` values, etc. Shelby reads the value from the host process environment at run time.
+
+```yaml
+steps:
+  - id: fetch
+    type: http_get
+    source: "https://${env.API_HOST}/v1/status"
+    headers:
+      Authorization: "Bearer ${env.API_TOKEN}"
+
+  - id: notify
+    type: shell
+    command: "curl -s -X POST ${env.SLACK_WEBHOOK} -d 'done'"
+```
+
+**Missing variables** resolve to an empty string — no error is raised. If your pipeline requires a variable to be set, validate it yourself (e.g., a `conditional` step that checks the value).
+
+**Interpolation vs. full-string refs**: an interpolated ref like `"https://${env.HOST}/path"` always produces a string. A full-string ref like `"${env.PORT}"` also produces a string (env vars are always strings).
+
+### Forwarding env vars to scripts
+
+`script` steps run a subprocess that does not inherit the host environment by default. Use `env_keys` to whitelist which variables Shelby forwards inside the `ScriptRequest.env` map:
+
+```yaml
+- id: enrich
+  type: script
+  runtime: python
+  file: ./enrich.py
+  env_keys: [API_TOKEN, DATABASE_URL]   # only these are forwarded
+  input:
+    value: ${steps.fetch.output.latency}
+```
+
+The script receives them under `request["env"]`:
+
+```python
+import sys, json
+req = json.load(sys.stdin)
+token = req["env"].get("API_TOKEN", "")
+```
+
 ## Shell Parsers
 
 Use `parse` under `shell` steps to structure outputs:

@@ -96,6 +96,15 @@ func init() {
 		}
 		return pongo2.AsValue(in.Float() / total), nil
 	})
+
+	// smartfloat formats a float with 1 decimal place, but omits the decimal when it is zero.
+	pongo2.RegisterFilter("smartfloat", func(in *pongo2.Value, _ *pongo2.Value) (*pongo2.Value, *pongo2.Error) {
+		f := in.Float()
+		if f == float64(int64(f)) {
+			return pongo2.AsValue(fmt.Sprintf("%d", int64(f))), nil
+		}
+		return pongo2.AsValue(fmt.Sprintf("%.1f", f)), nil
+	})
 }
 
 // Renderer resolves widget bindings and renders pongo2 templates.

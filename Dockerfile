@@ -28,8 +28,8 @@ RUN apk add --no-cache ca-certificates tzdata
 ENV SHELBY_HOME=/data
 VOLUME /data
 
-# Expose web UI port
-EXPOSE 8080
+# Expose web UI port (shelby serve) and viz port (shelby viz serve)
+EXPOSE 8080 5000
 
 # Copy the binary from the build stage
 COPY --from=builder /app/bin/shelby /usr/local/bin/shelby

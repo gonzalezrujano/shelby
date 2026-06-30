@@ -31,6 +31,68 @@ cd shelby
 go build -o shelby ./cmd/shelby
 ```
 
+## Docker
+
+### Build local
+
+```bash
+docker build -t shelby:latest .
+```
+
+Multi-plataforma (para subir a Docker Hub):
+
+```bash
+docker buildx create --use   # solo la primera vez
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t tu-usuario/shelby:latest \
+  --push \
+  .
+```
+
+### Correr con docker-compose
+
+El repositorio incluye un `docker-compose.yml` con dos servicios:
+
+| Servicio | Comando | Puerto |
+|---|---|---|
+| `shelby` | `shelby serve` — daemon + web UI | 8080 |
+| `shelby-viz` | `shelby viz serve` — dashboard visual | 5000 |
+
+```bash
+# 1. Copiar y editar variables de entorno
+cp .env.example .env
+
+# 2. Crear carpetas para tus recursos
+mkdir -p pipelines dashboards/my-dashboard
+
+# 3. Levantar el stack
+docker compose up -d
+
+# 4. Registrar un pipeline (una vez por pipeline)
+docker compose exec shelby shelby add /pipelines/mi-pipeline.yaml
+```
+
+Estructura esperada en el directorio de trabajo:
+
+```
+├── docker-compose.yml
+├── .env
+├── pipelines/          # archivos .yaml de pipelines
+└── dashboards/
+    └── my-dashboard/   # dashboard.yml + widgets/ + sandbox.yml
+```
+
+Variables de entorno relevantes (ver `.env.example`):
+
+| Variable | Default | Descripción |
+|---|---|---|
+| `SHELBY_IMAGE` | `tu-usuario/shelby:latest` | Imagen a usar |
+| `SHELBY_PORT` | `8080` | Puerto del daemon |
+| `VIZ_PORT` | `5000` | Puerto del viz |
+| `VIZ_DASHBOARD` | `my-dashboard` | Carpeta del dashboard activo |
+| `TZ` | `UTC` | Zona horaria |
+
 ## Quickstart
 
 ```bash

@@ -1,0 +1,51 @@
+services:
+  shelby:
+    image: ${SHELBY_IMAGE:-tu-usuario/shelby:latest}
+    # build: .   # descomenta para construir la imagen localmente
+    command: serve
+    ports:
+      - "${SHELBY_PORT:-8080}:8080"
+    volumes:
+      # Estado persistente: pipelines registrados + historial de runs
+      - shelby-data:/data
+      # Pipeline YAMLs montados como solo-lectura; regístralos con:
+      #   docker compose exec shelby shelby register /pipelines/mi-pipeline.yaml
+      - ./pipelines:/pipelines:ro
+    environment:
+      SHELBY_HOME: /data
+      TZ: ${TZ:-UTC}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/pipelines"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  shelby-viz:
+    image: ${SHELBY_IMAGE:-tu-usuario/shelby:latest}
+    # build: .
+    command:
+      - viz
+      - serve
+      - /dashboards/${VIZ_DASHBOARD:-my-dashboard}
+      - --shelby
+      - http://shelby:8080
+      - --port
+      - "5000"
+      - --watch
+    ports:
+      - "${VIZ_PORT:-5000}:5000"
+    volumes:
+      # Directorio con tus proyectos de dashboard (cada uno es una carpeta)
+      - ./dashboards:/dashboards:ro
+    environment:
+      TZ: ${TZ:-UTC}
+    depends_on:
+      shelby:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  # Almacena registros de pipelines y el historial de runs en SHELBY_HOME
+  shelby-data:

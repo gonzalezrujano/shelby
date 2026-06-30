@@ -17,7 +17,7 @@
   .flat  { color: #555; }
 </style>
 <div class="wrap">
-  <div class="value">{{ val|floatformat:1 }}{{ config.unit|default:"" }}</div>
+  <div class="value">{{ val|smartfloat }}{{ config.unit|default:"" }}</div>
   <div class="label">{{ meta.title }}</div>
   <div class="trend {{ tdir }}">{{ ticon }} {{ trend|abs|floatformat:2 }}</div>
 </div>

@@ -30,6 +30,6 @@
     <div class="bg"></div>
     <div class="fill"></div>
   </div>
-  <div class="value">{{ val|floatformat:1 }}{{ config.unit|default:"" }}</div>
+  <div class="value">{{ val|smartfloat }}{{ config.unit|default:"" }}</div>
   <div class="label">{{ meta.title }}</div>
 </div>
