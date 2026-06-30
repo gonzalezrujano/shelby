@@ -22,7 +22,7 @@ FROM alpine:latest
 WORKDIR /app
 
 # Install generic useful packages like ca-certificates and tzdata
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata python3
 
 # Set an environment variable for the store directory, and make it a volume
 ENV SHELBY_HOME=/data

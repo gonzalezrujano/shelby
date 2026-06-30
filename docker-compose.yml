@@ -21,6 +21,8 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+    env_file:
+      - .env
 
   shelby-viz:
     image: ${SHELBY_IMAGE:-tu-usuario/shelby:latest}
