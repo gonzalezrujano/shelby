@@ -192,6 +192,35 @@ func (s *Store) Remove(nameOrSlug string) error {
 	return nil
 }
 
+// PurgeRuns deletes recorded run history. If slug is empty, run history for
+// every pipeline is removed; otherwise only the given slug's history.
+// Registrations are left untouched.
+func (s *Store) PurgeRuns(slug string) error {
+	dir := filepath.Join(s.Root, "runs")
+	if slug != "" {
+		dir = filepath.Join(dir, slug)
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	return os.MkdirAll(dir, 0o755)
+}
+
+// PurgeAll wipes both registrations and run history, resetting the store to
+// empty.
+func (s *Store) PurgeAll() error {
+	for _, sub := range []string{"pipelines", "runs"} {
+		dir := filepath.Join(s.Root, sub)
+		if err := os.RemoveAll(dir); err != nil {
+			return err
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // RecordRun appends a run history entry under runs/<slug>/.
 func (s *Store) RecordRun(slug string, rec RunRecord) error {
 	dir := filepath.Join(s.Root, "runs", slug)

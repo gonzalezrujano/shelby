@@ -8,3 +8,6 @@ Próximos pasos
 - Soporte de filtros/cohorts dentro de la UI del dashboard
 - desplegar imagen a Docker Hub con GitHub Actions (tests, amd64, arm64)
 - Agregar soporte para scripts de JavaScript
+- alias shell para CLI
+- n8n? -> para poder utilizarlo en otros sistemas y compartir flujo
+- agregar comando export para exportar resultados de un pipeline a un archivo

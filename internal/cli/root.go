@@ -48,6 +48,8 @@ func Run(args []string) int {
 		return cmdUpdate(rest)
 	case "rm":
 		return cmdRm(rest)
+	case "purge":
+		return cmdPurge(rest)
 	case "validate":
 		return cmdValidate(rest)
 	case "lint":
@@ -80,6 +82,9 @@ commands:
   list|ls               list registered pipelines with last-run status
   show <name|slug>      show pipeline YAML + last run summary
   rm <name|slug>        unregister pipeline (drops run history)
+  purge [name|slug]     clear run history (all pipelines, or just one)
+                        --all     also remove pipeline registrations
+                        -y        skip confirmation prompt
   run [-v|--debug] <name|file.yaml>
                         execute pipeline; registered runs are recorded
                         -v        print each step's status/duration/data as it runs
@@ -257,6 +262,72 @@ func cmdRm(args []string) int {
 		return 1
 	}
 	fmt.Printf("removed: %s\n", args[0])
+	return 0
+}
+
+func cmdPurge(args []string) int {
+	fs := flag.NewFlagSet("purge", flag.ContinueOnError)
+	all := fs.Bool("all", false, "also remove pipeline registrations, not just run history")
+	yes := fs.Bool("y", false, "skip confirmation prompt")
+	fs.BoolVar(yes, "yes", false, "alias for -y")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	rest := fs.Args()
+
+	st, err := openStore()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "store:", err)
+		return 1
+	}
+
+	var slug, label string
+	if len(rest) >= 1 {
+		reg, err := st.Get(rest[0])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		slug = reg.Slug
+		label = fmt.Sprintf("pipeline %q", reg.Name)
+	} else {
+		label = "all pipelines"
+	}
+
+	action := "run history for"
+	if *all {
+		action = "registrations and run history for"
+	}
+	if !*yes {
+		fmt.Printf("this will permanently delete %s %s. continue? [y/N] ", action, label)
+		var resp string
+		fmt.Scanln(&resp)
+		resp = strings.ToLower(strings.TrimSpace(resp))
+		if resp != "y" && resp != "yes" {
+			fmt.Println("aborted")
+			return 1
+		}
+	}
+
+	if *all {
+		if slug != "" {
+			if err := st.Remove(slug); err != nil {
+				fmt.Fprintln(os.Stderr, "purge:", err)
+				return 1
+			}
+		} else {
+			if err := st.PurgeAll(); err != nil {
+				fmt.Fprintln(os.Stderr, "purge:", err)
+				return 1
+			}
+		}
+	} else {
+		if err := st.PurgeRuns(slug); err != nil {
+			fmt.Fprintln(os.Stderr, "purge:", err)
+			return 1
+		}
+	}
+	fmt.Printf("purged: %s %s\n", action, label)
 	return 0
 }
 
