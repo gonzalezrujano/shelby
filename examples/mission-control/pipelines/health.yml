@@ -1,0 +1,42 @@
+name: "Mission Control Health"
+description: "Latency and status for the app, Redis, database, and queue"
+interval: 60s
+
+steps:
+  # Landing page / app
+  - id: app_ping
+    type: http_get
+    source: "${env.APP_URL}"
+    timeout: 10s
+
+  # Upstash Redis — PING via REST API
+  - id: redis_ping
+    type: http_get
+    source: "${env.KV_REST_API_URL}/ping"
+    headers:
+      Authorization: "Bearer ${env.KV_REST_API_TOKEN}"
+    timeout: 5s
+
+  # Supabase — query a lightweight table (single row)
+  - id: supabase_ping
+    type: http_get
+    source: "${env.SUPABASE_URL}/rest/v1/songs?select=id&limit=1"
+    headers:
+      apikey: "${env.SUPABASE_SERVICE_ROLE_KEY}"
+      Authorization: "Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}"
+    timeout: 8s
+
+  # QStash — list queues (an empty list is fine, 200 = healthy)
+  - id: qstash_ping
+    type: http_get
+    source: "https://qstash-us-east-1.upstash.io/v2/queues"
+    headers:
+      Authorization: "Bearer ${env.QSTASH_TOKEN}"
+    timeout: 8s
+
+# Auto-capture: every step exposes status_code and response_time.
+# Dashboard paths:
+#   app_ping.status_code      app_ping.response_time
+#   redis_ping.status_code    redis_ping.response_time
+#   supabase_ping.status_code supabase_ping.response_time
+#   qstash_ping.status_code   qstash_ping.response_time

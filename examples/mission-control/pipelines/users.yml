@@ -1,0 +1,19 @@
+name: "Mission Control Users"
+description: "User stats from Supabase Auth — total, new today, with a jukebox configured"
+interval: 300s
+
+steps:
+  # Paginate through the Supabase Admin API
+  - id: users
+    type: script
+    runtime: python
+    file: ./scripts/user_stats.py
+    timeout: 30s
+    env_keys: [SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY]
+
+# Auto-capture paths:
+#   users.total_users     → total registered users
+#   users.new_today       → signups today
+#   users.new_this_week   → signups in the last 7 days
+#   users.with_jukebox    → users who configured a jukebox
+#   users.without_jukebox → users who haven't

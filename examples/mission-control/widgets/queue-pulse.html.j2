@@ -1,0 +1,169 @@
+{# queue-pulse.html.j2 — Active jukeboxes and songs queued #}
+<style>
+  :host {
+    display: block;
+    height: 100%;
+    font-family: 'Inter', system-ui, sans-serif;
+    box-sizing: border-box;
+  }
+  .root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 16px;
+    gap: 14px;
+    box-sizing: border-box;
+  }
+  /* ── Top row: big numbers ── */
+  .kpi-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .kpi {
+    flex: 1;
+  }
+  .kpi-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8C6535;
+    margin-bottom: 4px;
+  }
+  .kpi-value {
+    font-size: 52px;
+    font-weight: 900;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: #f48a34;
+  }
+  .kpi-value.songs { color: #F2913D; font-size: 36px; }
+  .kpi-sub {
+    font-size: 10px;
+    color: #8C6535;
+    margin-top: 4px;
+  }
+  /* ── Live pulse indicator ── */
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #4ade80;
+  }
+  .pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 8px rgba(74,222,128,0.6);
+    animation: pulse-anim 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse-anim {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.5; transform: scale(0.7); }
+  }
+  /* ── Song history sparkline (last 10 data points) ── */
+  .chart-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #8C6535;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .spark {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 56px;
+  }
+  .spark-bar {
+    flex: 1;
+    border-radius: 3px 3px 0 0;
+    transition: height 0.5s ease;
+  }
+  /* ── Queue slots: 10 max per jukebox ── */
+  .slots-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #8C6535;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .slots {
+    display: flex;
+    gap: 4px;
+  }
+  .slot {
+    flex: 1;
+    height: 10px;
+    border-radius: 3px;
+  }
+  .slot-filled { background: rgba(244,138,52,0.7); }
+  .slot-empty  { background: rgba(140,101,53,0.15); }
+</style>
+
+{%- set pl_count   = data.playlists.Last|default:0|float -%}
+{%- set song_count = data.songs.Last|default:0|float -%}
+{%- set song_max   = data.songs.Max|default:1|float -%}
+{%- set song_pts   = data.songs.Points -%}
+
+<div class="root">
+
+  <!-- KPI numbers -->
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-label">Active jukeboxes</div>
+      <div class="kpi-value">{{ pl_count|floatformat:0 }}</div>
+      <div class="kpi-sub">live in Redis</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Songs queued</div>
+      <div class="kpi-value songs">{{ song_count|floatformat:0 }}</div>
+      <div class="kpi-sub">sum across all jukeboxes</div>
+    </div>
+    {% if pl_count > 0 %}
+    <div class="live-badge">
+      <div class="pulse-dot"></div>
+      LIVE
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Sparkline: queued song history (last 10 runs) -->
+  <div>
+    <div class="chart-label">Queued songs history</div>
+    <div class="spark">
+      {% for p in song_pts %}
+        {%- set bar_h = p.V|float|ratio:song_max -%}
+        {%- set pct = bar_h|float -%}
+        <div
+          class="spark-bar"
+          style="height: {% if pct > 0.04 %}{{ pct|floatformat:2|float * 52 }}px{% else %}3px{% endif %};
+                 background: linear-gradient(to top,
+                   rgba(244,138,52,{{ 0.4 + pct|float * 0.5 }}),
+                   rgba(242,145,61,{{ 0.2 + pct|float * 0.3 }}));"
+          title="{{ p.V|floatformat:0 }} songs · {{ p.T }}"
+        ></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Queue fill slots: how many of the 10 "slots" are occupied -->
+  <div>
+    <div class="slots-label">Queue slots (10 max per jukebox)</div>
+    <div class="slots">
+      {% for i in "1234567890" %}
+        {%- set filled = song_count|float > forloop.Counter0|float -%}
+        <div class="slot {% if filled %}slot-filled{% else %}slot-empty{% endif %}"></div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>

@@ -1,0 +1,60 @@
+{# counter.html.j2 — Override of the built-in. Big number + trend arrow. #}
+<style>
+  :host {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .wrap {
+    padding: 20px;
+    text-align: center;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8C6535;
+    margin-bottom: 10px;
+  }
+  .value {
+    font-size: 52px;
+    font-weight: 900;
+    line-height: 1;
+    color: #f48a34;
+    font-variant-numeric: tabular-nums;
+  }
+  .trend-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .trend-up   { color: #4ade80; font-size: 16px; font-weight: 700; }
+  .trend-down { color: #F2594B; font-size: 16px; font-weight: 700; }
+  .trend-flat { color: #8C6535; font-size: 16px; }
+  .unit {
+    font-size: 11px;
+    color: #8C6535;
+    margin-top: 4px;
+  }
+</style>
+<div class="wrap">
+  <div class="title">{{ meta.title }}</div>
+  <div class="value">{{ data.value.Last|floatformat:0 }}</div>
+  <div class="trend-row">
+    {% if data.value.Trend > 0 %}
+      <span class="trend-up">↑ {{ data.value.Trend|floatformat:0 }}</span>
+    {% elif data.value.Trend < 0 %}
+      <span class="trend-down">↓ {{ data.value.Trend|abs|floatformat:0 }}</span>
+    {% else %}
+      <span class="trend-flat">— no change</span>
+    {% endif %}
+  </div>
+  <div class="unit">{{ config.unit|default:"" }}</div>
+</div>

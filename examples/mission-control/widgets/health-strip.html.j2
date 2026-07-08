@@ -1,0 +1,155 @@
+{# health-strip.html.j2 — 4 services with latency and status #}
+<style>
+  :host {
+    display: block;
+    height: 100%;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    height: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(244, 138, 52, 0.1);
+    transition: border-color 0.3s;
+    gap: 6px;
+  }
+  .card.ok   { border-color: rgba(74, 222, 128, 0.2); }
+  .card.err  { border-color: rgba(242, 89, 75, 0.35); background: rgba(242,89,75,0.04); }
+  .service-name {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8C6535;
+  }
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-ok  { background: #4ade80; box-shadow: 0 0 6px rgba(74,222,128,0.5); }
+  .dot-err { background: #F2594B; box-shadow: 0 0 6px rgba(242,89,75,0.5); }
+  .status-text { font-size: 11px; font-weight: 600; }
+  .ok-text  { color: #4ade80; }
+  .err-text { color: #F2594B; }
+  .latency {
+    font-size: 26px;
+    font-weight: 900;
+    color: #F2EFE9;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .latency-unit {
+    font-size: 10px;
+    color: #8C6535;
+    margin-top: 2px;
+  }
+  @media (max-width: 580px) {
+    .strip {
+      gap: 6px;
+      padding: 8px;
+    }
+    .card {
+      padding: 10px 8px;
+      gap: 4px;
+    }
+    .latency {
+      font-size: 18px;
+    }
+    .service-name {
+      font-size: 8px;
+    }
+    .status-text {
+      font-size: 9px;
+    }
+    .latency-unit {
+      font-size: 8px;
+    }
+    .dot {
+      width: 6px;
+      height: 6px;
+    }
+  }
+</style>
+
+{%- set app_lat  = data.app_latency.Last|default:0|float -%}
+{%- set app_st   = data.app_status.Last|default:0|float -%}
+{%- set red_lat  = data.redis_latency.Last|default:0|float -%}
+{%- set red_st   = data.redis_status.Last|default:0|float -%}
+{%- set supa_lat = data.supabase_latency.Last|default:0|float -%}
+{%- set supa_st  = data.supabase_status.Last|default:0|float -%}
+{%- set qst_lat  = data.qstash_latency.Last|default:0|float -%}
+{%- set qst_st   = data.qstash_status.Last|default:0|float -%}
+
+<div class="strip">
+
+  <!-- App / Landing -->
+  <div class="card {% if app_st < 400 %}ok{% else %}err{% endif %}">
+    <div class="service-name">App / Landing</div>
+    <div class="status-row">
+      <div class="dot {% if app_st < 400 %}dot-ok{% else %}dot-err{% endif %}"></div>
+      <span class="status-text {% if app_st < 400 %}ok-text{% else %}err-text{% endif %}">
+        {% if app_st < 400 %}Online{% else %}Error {{ app_st|floatformat:0 }}{% endif %}
+      </span>
+    </div>
+    <div class="latency">{{ app_lat|floatformat:0 }}</div>
+    <div class="latency-unit">ms · app.example.com</div>
+  </div>
+
+  <!-- Redis / Upstash -->
+  <div class="card {% if red_st < 400 %}ok{% else %}err{% endif %}">
+    <div class="service-name">Redis / Upstash</div>
+    <div class="status-row">
+      <div class="dot {% if red_st < 400 %}dot-ok{% else %}dot-err{% endif %}"></div>
+      <span class="status-text {% if red_st < 400 %}ok-text{% else %}err-text{% endif %}">
+        {% if red_st < 400 %}Online{% else %}Error {{ red_st|floatformat:0 }}{% endif %}
+      </span>
+    </div>
+    <div class="latency">{{ red_lat|floatformat:0 }}</div>
+    <div class="latency-unit">ms · upstash.io</div>
+  </div>
+
+  <!-- Supabase -->
+  <div class="card {% if supa_st < 400 %}ok{% else %}err{% endif %}">
+    <div class="service-name">Supabase</div>
+    <div class="status-row">
+      <div class="dot {% if supa_st < 400 %}dot-ok{% else %}dot-err{% endif %}"></div>
+      <span class="status-text {% if supa_st < 400 %}ok-text{% else %}err-text{% endif %}">
+        {% if supa_st < 400 %}Online{% else %}Error {{ supa_st|floatformat:0 }}{% endif %}
+      </span>
+    </div>
+    <div class="latency">{{ supa_lat|floatformat:0 }}</div>
+    <div class="latency-unit">ms · supabase.co</div>
+  </div>
+
+  <!-- QStash -->
+  <div class="card {% if qst_st < 400 %}ok{% else %}err{% endif %}">
+    <div class="service-name">QStash</div>
+    <div class="status-row">
+      <div class="dot {% if qst_st < 400 %}dot-ok{% else %}dot-err{% endif %}"></div>
+      <span class="status-text {% if qst_st < 400 %}ok-text{% else %}err-text{% endif %}">
+        {% if qst_st < 400 %}Online{% else %}Error {{ qst_st|floatformat:0 }}{% endif %}
+      </span>
+    </div>
+    <div class="latency">{{ qst_lat|floatformat:0 }}</div>
+    <div class="latency-unit">ms · upstash.io</div>
+  </div>
+
+</div>

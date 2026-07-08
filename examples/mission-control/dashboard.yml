@@ -1,0 +1,280 @@
+name: "Mission Control"
+description: "Real-time monitoring: service health, active jukeboxes, and user growth"
+refresh: 30s
+
+layout:
+  columns: 12
+
+vars:
+  shelby_url: http://localhost:8080
+
+widgets:
+
+  # ══════════════════════════════════════════
+  # ROW 1 — Health strip (full width)
+  # ══════════════════════════════════════════
+
+  - id: health-strip
+    title: "Service Status"
+    type: custom
+    template: widgets/health-strip.html.j2
+    col: 1
+    row: 1
+    width: 12
+    height: 2
+    binding:
+      app_latency:
+        pipeline: health
+        series: app_ping.response_time
+        limit: 1
+      app_status:
+        pipeline: health
+        series: app_ping.status_code
+        limit: 1
+      redis_latency:
+        pipeline: health
+        series: redis_ping.response_time
+        limit: 1
+      redis_status:
+        pipeline: health
+        series: redis_ping.status_code
+        limit: 1
+      supabase_latency:
+        pipeline: health
+        series: supabase_ping.response_time
+        limit: 1
+      supabase_status:
+        pipeline: health
+        series: supabase_ping.status_code
+        limit: 1
+      qstash_latency:
+        pipeline: health
+        series: qstash_ping.response_time
+        limit: 1
+      qstash_status:
+        pipeline: health
+        series: qstash_ping.status_code
+        limit: 1
+
+  # ══════════════════════════════════════════
+  # ROW 2 — KPI cards (4 counters)
+  # ══════════════════════════════════════════
+
+  - id: kpi-playlists
+    title: "Active Jukeboxes"
+    type: counter
+    col: 1
+    row: 3
+    width: 3
+    height: 3
+    binding:
+      value:
+        pipeline: queue
+        series: scan.active_playlists
+        limit: 2
+    config:
+      unit: "jukeboxes"
+
+  - id: kpi-songs
+    title: "Songs Queued"
+    type: counter
+    col: 4
+    row: 3
+    width: 3
+    height: 3
+    binding:
+      value:
+        pipeline: queue
+        series: scan.total_songs
+        limit: 2
+    config:
+      unit: "songs"
+
+  - id: kpi-users
+    title: "Total Users"
+    type: counter
+    col: 7
+    row: 3
+    width: 3
+    height: 3
+    binding:
+      value:
+        pipeline: users
+        series: users.total_users
+        limit: 2
+    config:
+      unit: "users"
+
+  - id: kpi-today
+    title: "Signups Today"
+    type: counter
+    col: 10
+    row: 3
+    width: 3
+    height: 3
+    binding:
+      value:
+        pipeline: users
+        series: users.new_today
+        limit: 2
+    config:
+      unit: "today"
+
+  # ══════════════════════════════════════════
+  # ROW 3 — Queue pulse + app latency timeseries
+  # ══════════════════════════════════════════
+
+  - id: queue-pulse
+    title: "Jukeboxes & Queue"
+    type: custom
+    template: widgets/queue-pulse.html.j2
+    col: 1
+    row: 6
+    width: 7
+    height: 5
+    binding:
+      playlists:
+        pipeline: queue
+        series: scan.active_playlists
+        limit: 1
+      songs:
+        pipeline: queue
+        series: scan.total_songs
+        limit: 10
+
+  - id: app-latency-chart
+    title: "App Latency"
+    type: timeseries
+    col: 8
+    row: 6
+    width: 5
+    height: 5
+    binding:
+      series:
+        pipeline: health
+        series: app_ping.response_time
+        limit: 30
+    config:
+      unit: "ms"
+      color: "#f48a34"
+
+  # ══════════════════════════════════════════
+  # ROW 4 — Redis and Supabase latency
+  # ══════════════════════════════════════════
+
+  - id: redis-latency-chart
+    title: "Redis / Upstash Latency"
+    type: timeseries
+    col: 1
+    row: 11
+    width: 6
+    height: 4
+    binding:
+      series:
+        pipeline: health
+        series: redis_ping.response_time
+        limit: 30
+    config:
+      unit: "ms"
+      color: "#F2913D"
+
+  - id: supabase-latency-chart
+    title: "Supabase Latency"
+    type: timeseries
+    col: 7
+    row: 11
+    width: 6
+    height: 4
+    binding:
+      series:
+        pipeline: health
+        series: supabase_ping.response_time
+        limit: 30
+    config:
+      unit: "ms"
+      color: "#F2594B"
+
+  # ══════════════════════════════════════════
+  # ROW 5 — Users gauge + Redis counters
+  # ══════════════════════════════════════════
+
+  - id: jukebox-adoption
+    title: "Users With Jukebox"
+    type: gauge
+    col: 1
+    row: 15
+    width: 4
+    height: 4
+    binding:
+      value:
+        pipeline: users
+        series: users.with_jukebox
+        limit: 2
+    config:
+      min: 0
+      max: 200
+      unit: "users"
+
+  - id: redis-bans
+    title: "Active Bans (Redis)"
+    type: counter
+    col: 5
+    row: 15
+    width: 4
+    height: 4
+    binding:
+      value:
+        pipeline: queue
+        series: scan.key_bans
+        limit: 2
+    config:
+      unit: "keys"
+
+  - id: redis-votes
+    title: "Active Votes (Redis)"
+    type: counter
+    col: 9
+    row: 15
+    width: 4
+    height: 4
+    binding:
+      value:
+        pipeline: queue
+        series: scan.key_votes
+        limit: 2
+    config:
+      unit: "keys"
+
+  # ══════════════════════════════════════════
+  # ROW 6 — Signup and queue history tables
+  # ══════════════════════════════════════════
+
+  - id: users-week-table
+    title: "Signups — Last 7 Days"
+    type: table
+    col: 1
+    row: 19
+    width: 6
+    height: 5
+    binding:
+      rows:
+        pipeline: users
+        series: users.new_today
+        limit: 20
+    config:
+      unit: "users/day"
+
+  - id: songs-history-table
+    title: "Songs Queued — History"
+    type: table
+    col: 7
+    row: 19
+    width: 6
+    height: 5
+    binding:
+      rows:
+        pipeline: queue
+        series: scan.total_songs
+        limit: 20
+    config:
+      unit: "songs"

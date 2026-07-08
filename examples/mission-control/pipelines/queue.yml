@@ -1,0 +1,30 @@
+name: "Mission Control Queue"
+description: "Full Redis scan — active jukeboxes, queued songs, key distribution"
+interval: 120s
+
+steps:
+  # Quick key count, no script required
+  - id: dbsize
+    type: http_get
+    source: "${env.KV_REST_API_URL}/dbsize"
+    headers:
+      Authorization: "Bearer ${env.KV_REST_API_TOKEN}"
+    extract: result
+    timeout: 5s
+
+  # Full scan: categorizes keys, counts jukeboxes and queued songs
+  - id: scan
+    type: script
+    runtime: python
+    file: ./scripts/redis_scan.py
+    timeout: 30s
+    env_keys: [KV_REST_API_URL, KV_REST_API_TOKEN]
+
+# Auto-capture paths:
+#   dbsize.value              → total keys
+#   scan.active_playlists     → jukeboxes active right now
+#   scan.total_songs          → songs queued (sum across all jukeboxes)
+#   scan.key_bans             → active ban keys
+#   scan.key_votes            → active vote keys
+#   scan.key_autoplay         → autoplay keys
+#   scan.key_cache            → cache keys (top_hits, rec_cache)

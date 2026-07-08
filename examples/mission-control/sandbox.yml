@@ -1,0 +1,104 @@
+# Mock data for: shelby viz sandbox mission-control
+# Simulates realistic data so the dashboard can be developed
+# without a running Shelby server.
+# Each list runs from oldest (left) to most recent (right).
+
+pipelines:
+
+  # ── health: latencies and status codes ─────────────────────
+  health:
+    # App — typical latencies for a site on Vercel
+    app_ping.response_time: [148, 162, 141, 209, 155, 178, 143, 167, 188, 152,
+                              145, 171, 163, 193, 140, 158, 175, 169, 147, 155,
+                              160, 183, 137, 172, 149, 166, 191, 153, 168, 144]
+    app_ping.status_code:   [200, 200, 200, 200, 200, 200, 200, 200, 200, 200,
+                              200, 200, 200, 200, 200, 200, 200, 200, 200, 200,
+                              200, 200, 200, 200, 200, 200, 200, 200, 200, 200]
+
+    # Redis / Upstash — very fast, low latencies
+    redis_ping.response_time: [11, 13, 10, 14, 12, 15, 11, 13, 12, 10,
+                                14, 11, 13, 12, 15, 10, 14, 12, 11, 13,
+                                12, 14, 10, 13, 15, 11, 12, 14, 13, 11]
+    redis_ping.status_code:   [200, 200, 200, 200, 200, 200, 200, 200, 200, 200,
+                                200, 200, 200, 200, 200, 200, 200, 200, 200, 200,
+                                200, 200, 200, 200, 200, 200, 200, 200, 200, 200]
+
+    # Supabase — moderate latency (TLS handshake + query)
+    supabase_ping.response_time: [48, 55, 43, 67, 51, 72, 46, 59, 63, 44,
+                                   57, 49, 61, 53, 70, 42, 65, 52, 58, 47,
+                                   66, 54, 41, 62, 50, 68, 55, 45, 60, 49]
+    supabase_ping.status_code:   [200, 200, 200, 200, 200, 200, 200, 200, 200, 200,
+                                   200, 200, 200, 200, 200, 200, 200, 200, 200, 200,
+                                   200, 200, 200, 200, 200, 200, 200, 200, 200, 200]
+
+    # QStash — slightly higher latency (queue service)
+    qstash_ping.response_time: [82, 95, 78, 103, 88, 91, 79, 97, 85, 76,
+                                  99, 84, 92, 87, 101, 75, 94, 89, 83, 96,
+                                  80, 104, 77, 90, 86, 93, 81, 98, 88, 82]
+    qstash_ping.status_code:   [200, 200, 200, 200, 200, 200, 200, 200, 200, 200,
+                                  200, 200, 200, 200, 200, 200, 200, 200, 200, 200,
+                                  200, 200, 200, 200, 200, 200, 200, 200, 200, 200]
+
+  # ── queue: Redis state ──────────────────────────────────────
+  queue:
+    # Active jukeboxes — rises during peak hours, drops overnight (24h TTL)
+    scan.active_playlists: [1, 2, 2, 3, 4, 5, 5, 7, 6, 5,
+                             4, 3, 4, 5, 6, 7, 7, 6, 5, 4,
+                             3, 2, 2, 1, 2, 3, 4, 5, 6, 7]
+
+    # Songs queued (sum across all jukeboxes, 10 max per jukebox)
+    scan.total_songs: [3, 7, 9, 14, 18, 23, 25, 31, 28, 22,
+                        17, 12, 15, 21, 27, 32, 34, 29, 24, 18,
+                        11, 8, 6, 4, 9, 15, 20, 26, 30, 27]
+
+    # Total keys in Redis (all categories)
+    scan.total_keys: [12, 22, 28, 38, 47, 58, 63, 74, 68, 56,
+                       44, 33, 40, 53, 64, 76, 81, 70, 60, 46,
+                       31, 24, 20, 16, 27, 40, 52, 64, 72, 68]
+
+    # Ban keys (users or songs banned from playlists)
+    scan.key_bans: [2, 3, 4, 5, 6, 8, 9, 11, 10, 9,
+                     7, 6, 7, 9, 10, 12, 13, 11, 9, 8,
+                     6, 5, 4, 3, 5, 7, 9, 11, 12, 11]
+
+    # Vote keys (active likes/dislikes)
+    scan.key_votes: [4, 8, 12, 18, 22, 28, 30, 36, 32, 26,
+                      20, 15, 18, 24, 30, 38, 40, 34, 28, 22,
+                      14, 10, 8, 6, 11, 18, 24, 30, 36, 32]
+
+    # Autoplay config keys
+    scan.key_autoplay: [1, 2, 2, 3, 3, 4, 4, 5, 5, 4,
+                         4, 3, 3, 4, 4, 5, 5, 5, 4, 4,
+                         3, 2, 2, 2, 3, 3, 4, 4, 5, 5]
+
+    # Cache keys (top_hits, rec_cache)
+    scan.key_cache: [5, 5, 6, 6, 6, 7, 7, 8, 7, 7,
+                      6, 6, 6, 7, 7, 8, 8, 7, 7, 6,
+                      6, 6, 5, 5, 6, 6, 7, 7, 8, 8]
+
+  # ── users: user stats ───────────────────────────────────────
+  users:
+    # Total, cumulative — grows over time
+    users.total_users: [72, 75, 78, 82, 87, 89, 92, 95, 98, 101,
+                         104, 107, 110, 113, 116, 119, 122, 125, 128, 131,
+                         134, 137, 140, 143, 146, 149, 152, 155, 158, 161]
+
+    # Signups today — resets daily, rises during a campaign
+    users.new_today: [2, 3, 1, 4, 5, 2, 3, 6, 4, 3,
+                       2, 3, 4, 5, 3, 4, 7, 5, 4, 3,
+                       2, 1, 3, 2, 4, 5, 6, 8, 10, 12]
+
+    # Signups this week
+    users.new_this_week: [12, 14, 11, 16, 18, 13, 15, 20, 17, 14,
+                           13, 14, 16, 19, 14, 17, 22, 19, 16, 14,
+                           12, 10, 13, 11, 16, 19, 22, 26, 30, 34]
+
+    # Users with a jukebox configured
+    users.with_jukebox: [51, 53, 55, 58, 61, 63, 65, 68, 71, 73,
+                          75, 77, 79, 81, 83, 85, 87, 89, 91, 93,
+                          95, 97, 99, 101, 103, 105, 107, 109, 111, 113]
+
+    # Users without a jukebox
+    users.without_jukebox: [21, 22, 23, 24, 26, 26, 27, 27, 27, 28,
+                              29, 30, 31, 32, 33, 34, 35, 36, 37, 38,
+                              39, 40, 41, 42, 43, 44, 45, 46, 47, 48]
